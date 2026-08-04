@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "503789742343",
+    "firebase_url": "https://personal-bio-app-14b36-default-rtdb.firebaseio.com",
+    "project_id": "personal-bio-app-14b36",
+    "storage_bucket": "personal-bio-app-14b36.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:503789742343:android:87a2d8b90e1983e84cfda2",
+        "android_client_info": {
+          "package_name": "com.Passang.personalbioapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAlthe-yhTkYQx3Z4w5uu2XgUnc88zTxhM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:503789742343:android:8484c9009f38f59b4cfda2",
+        "android_client_info": {
+          "package_name": "com.example.student_financial_assistant"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAlthe-yhTkYQx3Z4w5uu2XgUnc88zTxhM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
