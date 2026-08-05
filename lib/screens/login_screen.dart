@@ -1,12 +1,4 @@
-// frontend/lib/screens/auth/login_screen.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../core/theme/app_colors.dart';
-import '../../providers/auth_provider.dart';
-import '../../widgets/custom_text_field.dart';
-import '../../widgets/gradient_button.dart';
-import '../../widgets/social_login_button.dart';
-import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,6 +12,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _rememberMe = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -31,39 +24,71 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final authProvider = context.read<AuthProvider>();
-    final ok = await authProvider.login(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(seconds: 1));
 
     if (!mounted) return;
 
-    if (!ok && authProvider.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(authProvider.errorMessage!)),
-      );
-    }
+    setState(() => _isLoading = false);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Login submitted')));
   }
 
   Future<void> _handleGoogleLogin() async {
-    final authProvider = context.read<AuthProvider>();
-    final ok = await authProvider.loginWithGoogle();
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(seconds: 1));
 
     if (!mounted) return;
 
-    if (!ok && authProvider.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(authProvider.errorMessage!)),
-      );
-    }
+    setState(() => _isLoading = false);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Google login tapped')));
+  }
+
+  InputDecoration _buildInputDecoration(
+    String label,
+    String hint,
+    IconData icon,
+  ) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      prefixIcon: Icon(icon, color: AppColors.primaryTeal),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      filled: true,
+      fillColor: Colors.white,
+    );
+  }
+
+  Widget _buildSocialButton(IconData icon, VoidCallback onPressed) {
+    return Ink(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: AppColors.textPrimary),
+        onPressed: onPressed,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = context.watch<AuthProvider>();
-    final isLoading = authProvider.status == AuthStatus.loading;
-
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
       body: SafeArea(
@@ -97,26 +122,33 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 32),
-                CustomTextField(
-                  label: 'Email',
-                  hint: 'Enter your email',
-                  icon: Icons.mail_outline,
+                TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
+                  decoration: _buildInputDecoration(
+                    'Email',
+                    'Enter your email',
+                    Icons.mail_outline,
+                  ),
                   validator: (value) {
-                    if (value == null || !value.contains('@')) {
+                    if (value == null || value.isEmpty) {
+                      return 'Email is required';
+                    }
+                    if (!value.contains('@')) {
                       return 'Enter a valid email address';
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: 18),
-                CustomTextField(
-                  label: 'Password',
-                  hint: 'Enter your password',
-                  icon: Icons.lock_outline,
+                TextFormField(
                   controller: _passwordController,
                   obscureText: true,
+                  decoration: _buildInputDecoration(
+                    'Password',
+                    'Enter your password',
+                    Icons.lock_outline,
+                  ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Password is required';
@@ -143,10 +175,25 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                GradientButton(
-                  label: 'Log in',
-                  isLoading: isLoading,
-                  onPressed: _handleLogin,
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryTeal,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: _isLoading ? null : _handleLogin,
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text('Log in', style: TextStyle(fontSize: 16)),
                 ),
                 const SizedBox(height: 28),
                 Row(
@@ -166,14 +213,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    SocialLoginButton(
-                      icon: Icons.g_mobiledata,
-                      onPressed: _handleGoogleLogin,
-                    ),
+                    _buildSocialButton(Icons.g_mobiledata, _handleGoogleLogin),
                     const SizedBox(width: 16),
-                    SocialLoginButton(icon: Icons.apple, onPressed: () {}),
+                    _buildSocialButton(Icons.apple, () {}),
                     const SizedBox(width: 16),
-                    SocialLoginButton(icon: Icons.mail_outline, onPressed: () {}),
+                    _buildSocialButton(Icons.mail_outline, () {}),
                   ],
                 ),
                 const SizedBox(height: 28),
@@ -184,7 +228,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     GestureDetector(
                       onTap: () {
                         Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const RegisterScreen(),
+                          ),
                         );
                       },
                       child: const Text(
@@ -205,4 +251,26 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
+
+class RegisterScreen extends StatelessWidget {
+  const RegisterScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Register'),
+        backgroundColor: AppColors.primaryTeal,
+      ),
+      body: const Center(child: Text('Register screen placeholder')),
+    );
+  }
+}
+
+class AppColors {
+  static const backgroundLight = Color(0xFFF6F8FA);
+  static const primaryTeal = Color(0xFF14B8A6);
+  static const textPrimary = Color(0xFF0F172A);
+  static const textSecondary = Color(0xFF64748B);
 }
