@@ -1,3 +1,6 @@
+import '../constants/app_colors.dart';
+import 'register_screen.dart';
+
 import 'package:flutter/material.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -55,7 +58,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return InputDecoration(
       labelText: label,
       hintText: hint,
-      prefixIcon: Icon(icon, color: AppColors.primaryTeal),
+      prefixIcon: Icon(icon, color: AppColors.primary),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide.none,
@@ -74,7 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -103,7 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const Icon(
                   Icons.account_balance_wallet_outlined,
                   size: 64,
-                  color: AppColors.primaryTeal,
+                  color: AppColors.primary,
                 ),
                 const SizedBox(height: 20),
                 const Text(
@@ -161,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     Checkbox(
                       value: _rememberMe,
-                      activeColor: AppColors.primaryTeal,
+                      activeColor: AppColors.primary,
                       onChanged: (value) {
                         setState(() => _rememberMe = value ?? true);
                       },
@@ -177,7 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 12),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryTeal,
+                    backgroundColor: AppColors.primary,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -236,7 +239,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text(
                         'Sign Up',
                         style: TextStyle(
-                          color: AppColors.primaryTeal,
+                          color: AppColors.primary,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -251,26 +254,4 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-}
-
-class RegisterScreen extends StatelessWidget {
-  const RegisterScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Register'),
-        backgroundColor: AppColors.primaryTeal,
-      ),
-      body: const Center(child: Text('Register screen placeholder')),
-    );
-  }
-}
-
-class AppColors {
-  static const backgroundLight = Color(0xFFF6F8FA);
-  static const primaryTeal = Color(0xFF14B8A6);
-  static const textPrimary = Color(0xFF0F172A);
-  static const textSecondary = Color(0xFF64748B);
 }

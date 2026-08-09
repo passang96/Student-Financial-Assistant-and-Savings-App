@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../login_screen.dart';
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -17,7 +19,10 @@ class _SplashScreenState extends State<SplashScreen> {
     Timer(const Duration(seconds: 3), () {
       if (!mounted) return;
 
-      // We will connect this to the Login screen after Karma finishes it.
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
     });
   }
 
@@ -37,12 +42,15 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             children: [
               Spacer(flex: 2),
+
               Icon(
                 Icons.account_balance_wallet_outlined,
                 size: 130,
                 color: Color(0xFF166C8A),
               ),
+
               SizedBox(height: 40),
+
               Text(
                 'Student Financial\nAssistant App',
                 textAlign: TextAlign.center,
@@ -53,12 +61,16 @@ class _SplashScreenState extends State<SplashScreen> {
                   height: 1.3,
                 ),
               ),
+
               SizedBox(height: 22),
+
               Text(
                 'Track. Save. Achieve.',
                 style: TextStyle(color: Colors.white, fontSize: 20),
               ),
+
               Spacer(flex: 3),
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -69,6 +81,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   CircleAvatar(radius: 5, backgroundColor: Colors.white38),
                 ],
               ),
+
               SizedBox(height: 50),
             ],
           ),
