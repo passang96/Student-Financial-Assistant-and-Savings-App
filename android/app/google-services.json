@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "30313849035",
+    "project_id": "student-financial-assistant",
+    "storage_bucket": "student-financial-assistant.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:30313849035:android:b4f7ddb20abcd003d4bb4e",
+        "android_client_info": {
+          "package_name": "com.example.student_financial_assistant"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCYPoLJmNYC2kY7KW7lQ_2mJWz2bX5MMtY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
