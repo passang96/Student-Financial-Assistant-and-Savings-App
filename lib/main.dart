@@ -5,7 +5,7 @@ import 'firebase_options.dart';
 import 'screens/splash/splash_screen.dart';
 
 Future<void> main() async {
-  print('🔥🔥🔥 KAPIL MAIN.DART IS RUNNING 🔥🔥🔥');
+  print('🔥🔥🔥 YO! MAIN.DART IS RUNNING 🔥🔥🔥');
 
   WidgetsFlutterBinding.ensureInitialized();
 
