@@ -50,22 +50,20 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAJPmLdbVcXOjvIBkMtWsRJbWnppWOnuJw',
-    appId: '1:503789742343:web:6e321105df774bcb4cfda2',
-    messagingSenderId: '503789742343',
-    projectId: 'personal-bio-app-14b36',
-    authDomain: 'personal-bio-app-14b36.firebaseapp.com',
-    databaseURL: 'https://personal-bio-app-14b36-default-rtdb.firebaseio.com',
-    storageBucket: 'personal-bio-app-14b36.firebasestorage.app',
-    measurementId: 'G-SHL2EVRVGG',
+    apiKey: 'AIzaSyBLKbatzrhfNaVVqJhjtO5095pK3QUCwYY',
+    appId: '1:30313849035:web:d3e7a84ce518b0d9d4bb4e',
+    messagingSenderId: '30313849035',
+    projectId: 'student-financial-assistant',
+    authDomain: 'student-financial-assistant.firebaseapp.com',
+    storageBucket: 'student-financial-assistant.firebasestorage.app',
+    measurementId: 'G-R7XP43N8BW',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAlthe-yhTkYQx3Z4w5uu2XgUnc88zTxhM',
-    appId: '1:503789742343:android:8484c9009f38f59b4cfda2',
-    messagingSenderId: '503789742343',
-    projectId: 'personal-bio-app-14b36',
-    databaseURL: 'https://personal-bio-app-14b36-default-rtdb.firebaseio.com',
-    storageBucket: 'personal-bio-app-14b36.firebasestorage.app',
+    apiKey: 'AIzaSyCYPoLJmNYC2kY7KW7lQ_2mJWz2bX5MMtY',
+    appId: '1:30313849035:android:b4f7ddb20abcd003d4bb4e',
+    messagingSenderId: '30313849035',
+    projectId: 'student-financial-assistant',
+    storageBucket: 'student-financial-assistant.firebasestorage.app',
   );
 }
