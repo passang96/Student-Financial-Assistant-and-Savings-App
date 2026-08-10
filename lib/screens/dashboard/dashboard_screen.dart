@@ -1,6 +1,3 @@
-
-
-
 import 'package:flutter/material.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -20,9 +17,7 @@ class DashboardScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(24),
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(36),
-                  ),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
                 ),
                 child: SingleChildScrollView(
                   child: Column(
@@ -67,10 +62,7 @@ class DashboardScreen extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(28, 34, 28, 30),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Color(0xFF20C9C3),
-            Color(0xFF0E9F99),
-          ],
+          colors: [Color(0xFF20C9C3), Color(0xFF0E9F99)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
@@ -84,10 +76,7 @@ class DashboardScreen extends StatelessWidget {
               children: [
                 Text(
                   'Dashboard',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 17),
                 ),
                 SizedBox(height: 4),
                 Text(
@@ -104,11 +93,7 @@ class DashboardScreen extends StatelessWidget {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              Icon(
-                Icons.notifications,
-                color: Color(0xFF111827),
-                size: 30,
-              ),
+              Icon(Icons.notifications, color: Color(0xFF111827), size: 30),
               Positioned(
                 right: -5,
                 top: -7,
@@ -117,10 +102,7 @@ class DashboardScreen extends StatelessWidget {
                   backgroundColor: Colors.redAccent,
                   child: Text(
                     '3',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                    ),
+                    style: TextStyle(color: Colors.white, fontSize: 11),
                   ),
                 ),
               ),
@@ -143,12 +125,7 @@ class DashboardScreen extends StatelessWidget {
             color: Color(0xFF111827),
           ),
         ),
-        Text(
-          'This Month ▼',
-          style: TextStyle(
-            color: Color(0xFF64748B),
-          ),
-        ),
+        Text('This Month ▼', style: TextStyle(color: Color(0xFF64748B))),
       ],
     );
   }
@@ -206,12 +183,7 @@ class DashboardScreen extends StatelessWidget {
             color: Color(0xFF111827),
           ),
         ),
-        Text(
-          'See All',
-          style: TextStyle(
-            color: Color(0xFF2563EB),
-          ),
-        ),
+        Text('See All', style: TextStyle(color: Color(0xFF2563EB))),
       ],
     );
   }
@@ -240,10 +212,7 @@ class DashboardScreen extends StatelessWidget {
         children: [
           CircleAvatar(
             backgroundColor: const Color(0xFFE8FAF5),
-            child: Icon(
-              icon,
-              color: const Color(0xFF0E9F99),
-            ),
+            child: Icon(icon, color: const Color(0xFF0E9F99)),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -252,9 +221,7 @@ class DashboardScreen extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(
                   category,
@@ -269,18 +236,10 @@ class DashboardScreen extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                amount,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              Text(amount, style: const TextStyle(fontWeight: FontWeight.bold)),
               Text(
                 date,
-                style: const TextStyle(
-                  color: Color(0xFF94A3B8),
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
               ),
             ],
           ),
@@ -296,10 +255,7 @@ class DashboardScreen extends StatelessWidget {
       selectedItemColor: const Color(0xFF10BFB7),
       unselectedItemColor: const Color(0xFF64748B),
       items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          label: 'Home',
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
         BottomNavigationBarItem(
           icon: Icon(Icons.receipt_long_outlined),
           label: 'Expense',
@@ -352,19 +308,13 @@ class _OverviewCard extends StatelessWidget {
           Text(title),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           Text(
             footer,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF10B981),
-              fontSize: 11,
-            ),
+            style: const TextStyle(color: Color(0xFF10B981), fontSize: 11),
           ),
         ],
       ),

@@ -1,7 +1,9 @@
-import '../constants/app_colors.dart';
-import 'register_screen.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+import '../constants/app_colors.dart';
+import 'dashboard/dashboard_screen.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,8 +14,10 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
+
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
   bool _rememberMe = true;
   bool _isLoading = false;
 
@@ -25,29 +29,125 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 1));
+    setState(() {
+      _isLoading = true;
+    });
 
-    if (!mounted) return;
+    final String email = _emailController.text.trim();
+    final String password = _passwordController.text;
 
-    setState(() => _isLoading = false);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Login submitted')));
+    try {
+      debugPrint('===== FIREBASE LOGIN START =====');
+      debugPrint('Attempting login for: $email');
+
+      final UserCredential credential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
+
+      final User? user = credential.user;
+
+      debugPrint('===== FIREBASE LOGIN SUCCESS =====');
+      debugPrint('UID: ${user?.uid}');
+      debugPrint('Email: ${user?.email}');
+      debugPrint('Display Name: ${user?.displayName}');
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Login successful'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const DashboardScreen()),
+      );
+    } on FirebaseAuthException catch (e) {
+      debugPrint('===== FIREBASE LOGIN ERROR =====');
+      debugPrint('Code: ${e.code}');
+      debugPrint('Message: ${e.message}');
+
+      if (!mounted) {
+        return;
+      }
+
+      String message;
+
+      switch (e.code) {
+        case 'user-not-found':
+          message = 'No account found with this email.';
+          break;
+
+        case 'wrong-password':
+          message = 'Incorrect password.';
+          break;
+
+        case 'invalid-email':
+          message = 'Please enter a valid email address.';
+          break;
+
+        case 'invalid-credential':
+          message = 'Incorrect email or password.';
+          break;
+
+        case 'user-disabled':
+          message = 'This account has been disabled.';
+          break;
+
+        case 'too-many-requests':
+          message = 'Too many login attempts. Please try again later.';
+          break;
+
+        case 'network-request-failed':
+          message = 'Network error. Please check your internet connection.';
+          break;
+
+        default:
+          message = e.message ?? 'Login failed.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    } catch (e, stackTrace) {
+      debugPrint('===== UNKNOWN LOGIN ERROR =====');
+      debugPrint('Error: $e');
+      debugPrint('Stack Trace: $stackTrace');
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _handleGoogleLogin() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) {
+      return;
+    }
 
-    if (!mounted) return;
-
-    setState(() => _isLoading = false);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Google login tapped')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Google login will be implemented later')),
+    );
   }
 
   InputDecoration _buildInputDecoration(
@@ -103,12 +203,15 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 32),
+
                 const Icon(
                   Icons.account_balance_wallet_outlined,
                   size: 64,
                   color: AppColors.primary,
                 ),
+
                 const SizedBox(height: 20),
+
                 const Text(
                   'Welcome Back',
                   textAlign: TextAlign.center,
@@ -118,35 +221,53 @@ class _LoginScreenState extends State<LoginScreen> {
                     color: AppColors.textPrimary,
                   ),
                 ),
+
                 const SizedBox(height: 6),
+
                 const Text(
                   'Log in to keep tracking your goals',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
+
                 const SizedBox(height: 32),
+
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  autocorrect: false,
                   decoration: _buildInputDecoration(
                     'Email',
                     'Enter your email',
                     Icons.mail_outline,
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    final email = value?.trim() ?? '';
+
+                    if (email.isEmpty) {
                       return 'Email is required';
                     }
-                    if (!value.contains('@')) {
+
+                    if (!email.contains('@')) {
                       return 'Enter a valid email address';
                     }
+
                     return null;
                   },
                 ),
+
                 const SizedBox(height: 18),
+
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) {
+                    if (!_isLoading) {
+                      _handleLogin();
+                    }
+                  },
                   decoration: _buildInputDecoration(
                     'Password',
                     'Enter your password',
@@ -156,17 +277,22 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (value == null || value.isEmpty) {
                       return 'Password is required';
                     }
+
                     return null;
                   },
                 ),
+
                 const SizedBox(height: 12),
+
                 Row(
                   children: [
                     Checkbox(
                       value: _rememberMe,
                       activeColor: AppColors.primary,
                       onChanged: (value) {
-                        setState(() => _rememberMe = value ?? true);
+                        setState(() {
+                          _rememberMe = value ?? true;
+                        });
                       },
                     ),
                     const Text('Remember me'),
@@ -177,10 +303,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 12),
+
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -198,9 +327,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         )
                       : const Text('Log in', style: TextStyle(fontSize: 16)),
                 ),
+
                 const SizedBox(height: 28),
-                Row(
-                  children: const [
+
+                const Row(
+                  children: [
                     Expanded(child: Divider()),
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 12),
@@ -212,18 +343,41 @@ class _LoginScreenState extends State<LoginScreen> {
                     Expanded(child: Divider()),
                   ],
                 ),
+
                 const SizedBox(height: 20),
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _buildSocialButton(Icons.g_mobiledata, _handleGoogleLogin),
                     const SizedBox(width: 16),
-                    _buildSocialButton(Icons.apple, () {}),
+
+                    _buildSocialButton(Icons.apple, () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Apple login will be implemented later',
+                          ),
+                        ),
+                      );
+                    }),
+
                     const SizedBox(width: 16),
-                    _buildSocialButton(Icons.mail_outline, () {}),
+
+                    _buildSocialButton(Icons.mail_outline, () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Email login is already available above',
+                          ),
+                        ),
+                      );
+                    }),
                   ],
                 ),
+
                 const SizedBox(height: 28),
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -246,6 +400,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 24),
               ],
             ),
