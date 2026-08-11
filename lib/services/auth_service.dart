@@ -48,11 +48,11 @@ class AuthService {
       );
     } on FirebaseAuthException catch (e) {
       return AuthResult.failure(
-        _getFirebaseErrorMessage(e),
+        _firebaseErrorMessage(e),
       );
     } catch (e) {
       return AuthResult.failure(
-        'An unexpected error occurred.',
+        'Something went wrong. Please try again.',
       );
     }
   }
@@ -68,8 +68,7 @@ class AuthService {
       final cleanName = name.trim();
       final cleanEmail = email.trim();
       final cleanPassword = password.trim();
-      final cleanConfirmPassword =
-          confirmPassword.trim();
+      final cleanConfirmPassword = confirmPassword.trim();
 
       if (cleanName.isEmpty) {
         return AuthResult.failure(
@@ -107,22 +106,19 @@ class AuthService {
         );
       }
 
-      if (cleanPassword !=
-          cleanConfirmPassword) {
+      if (cleanPassword != cleanConfirmPassword) {
         return AuthResult.failure(
           'Passwords do not match.',
         );
       }
 
       final UserCredential credential =
-          await _firebaseAuth
-              .createUserWithEmailAndPassword(
+          await _firebaseAuth.createUserWithEmailAndPassword(
         email: cleanEmail,
         password: cleanPassword,
       );
 
-      await credential.user
-          ?.updateDisplayName(cleanName);
+      await credential.user?.updateDisplayName(cleanName);
 
       return AuthResult.success(
         message: 'Registration successful.',
@@ -130,11 +126,11 @@ class AuthService {
       );
     } on FirebaseAuthException catch (e) {
       return AuthResult.failure(
-        _getFirebaseErrorMessage(e),
+        _firebaseErrorMessage(e),
       );
     } catch (e) {
       return AuthResult.failure(
-        'An unexpected error occurred.',
+        'Something went wrong. Please try again.',
       );
     }
   }
@@ -145,7 +141,7 @@ class AuthService {
       await _firebaseAuth.signOut();
 
       return AuthResult.success(
-        message: 'Logout successful.',
+        message: 'Logged out successfully.',
       );
     } catch (e) {
       return AuthResult.failure(
@@ -154,15 +150,14 @@ class AuthService {
     }
   }
 
-  // CHECK CURRENT USER
-  User? get currentUser =>
-      _firebaseAuth.currentUser;
+  User? get currentUser {
+    return _firebaseAuth.currentUser;
+  }
 
-  // CHECK LOGIN STATUS
-  bool get isLoggedIn =>
-      _firebaseAuth.currentUser != null;
+  bool get isLoggedIn {
+    return _firebaseAuth.currentUser != null;
+  }
 
-  // EMAIL VALIDATION
   bool _isValidEmail(String email) {
     final emailRegex = RegExp(
       r'^[\w\.-]+@[\w\.-]+\.\w+$',
@@ -171,19 +166,18 @@ class AuthService {
     return emailRegex.hasMatch(email);
   }
 
-  // FIREBASE ERROR HANDLING
-  String _getFirebaseErrorMessage(
+  String _firebaseErrorMessage(
     FirebaseAuthException e,
   ) {
     switch (e.code) {
       case 'invalid-email':
-        return 'The email address is invalid.';
+        return 'Invalid email address.';
 
       case 'user-disabled':
         return 'This account has been disabled.';
 
       case 'user-not-found':
-        return 'No account was found with this email.';
+        return 'No account found with this email.';
 
       case 'wrong-password':
       case 'invalid-credential':
@@ -193,7 +187,7 @@ class AuthService {
         return 'An account already exists with this email.';
 
       case 'weak-password':
-        return 'The password is too weak.';
+        return 'Password is too weak.';
 
       case 'operation-not-allowed':
         return 'Email/password authentication is not enabled.';
