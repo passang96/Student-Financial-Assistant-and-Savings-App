@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../budget/budget_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -290,7 +291,14 @@ class DashboardScreen extends StatelessWidget {
  return BottomNavigationBar(
   currentIndex: 0,  
    onTap: (index) {
-  if (index != 0) {
+  if (index == 2) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const BudgetScreen(),
+      ),
+    );
+  } else if (index != 0) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('This page will be available soon.'),
