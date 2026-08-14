@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -5,30 +6,45 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    final String displayName =
+        (user?.displayName != null && user!.displayName!.trim().isNotEmpty)
+        ? user.displayName!.trim()
+        : 'User';
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(displayName),
+
             Expanded(
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(24),
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
                 ),
                 child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildOverviewHeader(),
-                      const SizedBox(height: 24),
-                      _buildOverviewCards(),
-                      const SizedBox(height: 26),
-                      _buildTransactionsHeader(),
+
                       const SizedBox(height: 12),
+
+                      _buildOverviewCards(),
+
+                      const SizedBox(height: 22),
+
+                      _buildTransactionsHeader(),
+
+                      const SizedBox(height: 12),
+
                       _buildTransaction(
                         icon: Icons.lunch_dining,
                         title: 'Lunch',
@@ -36,7 +52,9 @@ class DashboardScreen extends StatelessWidget {
                         amount: '-\$12.50',
                         date: 'Today',
                       ),
-                      const SizedBox(height: 12),
+
+                      const SizedBox(height: 10),
+
                       _buildTransaction(
                         icon: Icons.directions_bus,
                         title: 'Bus Fare',
@@ -52,14 +70,19 @@ class DashboardScreen extends StatelessWidget {
           ],
         ),
       ),
+
       bottomNavigationBar: _buildBottomNavigation(),
     );
   }
 
-  Widget _buildHeader() {
+  // =========================================================
+  // HEADER
+  // =========================================================
+
+  Widget _buildHeader(String displayName) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(28, 34, 28, 30),
+      padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xFF20C9C3), Color(0xFF0E9F99)],
@@ -67,42 +90,49 @@ class DashboardScreen extends StatelessWidget {
           end: Alignment.bottomCenter,
         ),
       ),
-      child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Dashboard',
-                  style: TextStyle(color: Colors.white, fontSize: 17),
+                  style: TextStyle(color: Colors.white, fontSize: 14),
                 ),
-                SizedBox(height: 4),
+
+                const SizedBox(height: 3),
+
                 Text(
-                  'Hello, Kapil! 👋',
-                  style: TextStyle(
+                  'Hello, $displayName! 👋',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 30,
+                    fontSize: 23,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
           ),
-          Stack(
+
+          const SizedBox(width: 12),
+
+          const Stack(
             clipBehavior: Clip.none,
             children: [
-              Icon(Icons.notifications, color: Color(0xFF111827), size: 30),
+              Icon(Icons.notifications, color: Color(0xFF111827), size: 27),
+
               Positioned(
                 right: -5,
                 top: -7,
                 child: CircleAvatar(
-                  radius: 9,
+                  radius: 8,
                   backgroundColor: Colors.redAccent,
                   child: Text(
                     '3',
-                    style: TextStyle(color: Colors.white, fontSize: 11),
+                    style: TextStyle(color: Colors.white, fontSize: 10),
                   ),
                 ),
               ),
@@ -113,6 +143,10 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // OVERVIEW
+  // =========================================================
+
   Widget _buildOverviewHeader() {
     return const Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -120,56 +154,95 @@ class DashboardScreen extends StatelessWidget {
         Text(
           'Overview',
           style: TextStyle(
-            fontSize: 25,
+            fontSize: 21,
             fontWeight: FontWeight.bold,
             color: Color(0xFF111827),
           ),
         ),
-        Text('This Month ▼', style: TextStyle(color: Color(0xFF64748B))),
+
+        Text(
+          'This Month ▼',
+          style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+        ),
       ],
     );
   }
 
   Widget _buildOverviewCards() {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 18,
-      mainAxisSpacing: 18,
-      childAspectRatio: 1.2,
-      children: const [
-        _OverviewCard(
-          icon: Icons.account_balance_wallet,
-          title: 'Total Balance',
-          value: '\$2,500',
-          footer: '↑ 12% from last month',
-          background: Color(0xFFE1FAF8),
-        ),
-        _OverviewCard(
-          icon: Icons.shopping_cart,
-          title: 'Expenses',
-          value: '\$650',
-          footer: '↓ 8% from last month',
-          background: Color(0xFFFFEEEE),
-        ),
-        _OverviewCard(
-          icon: Icons.savings_outlined,
-          title: 'Savings',
-          value: '\$1,200',
-          footer: '↑ 15% from last month',
-          background: Color(0xFFF2E8FF),
-        ),
-        _OverviewCard(
-          icon: Icons.payments_outlined,
-          title: 'Budget Left',
-          value: '\$300',
-          footer: '32% of budget',
-          background: Color(0xFFFFF7BF),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double availableWidth = constraints.maxWidth;
+
+        // Mobile:
+        // 2 cards per row.
+        //
+        // Wider Chrome/Desktop preview:
+        // Keep cards small instead of stretching across the screen.
+        final bool isWideScreen = availableWidth >= 700;
+
+        final double cardWidth = isWideScreen ? 280 : (availableWidth - 12) / 2;
+
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          alignment: isWideScreen ? WrapAlignment.start : WrapAlignment.center,
+          children: [
+            SizedBox(
+              width: cardWidth,
+              height: 125,
+              child: const _OverviewCard(
+                icon: Icons.account_balance_wallet,
+                title: 'Total Balance',
+                value: '\$2,500',
+                footer: '↑ 12% from last month',
+                background: Color(0xFFE1FAF8),
+              ),
+            ),
+
+            SizedBox(
+              width: cardWidth,
+              height: 125,
+              child: const _OverviewCard(
+                icon: Icons.shopping_cart,
+                title: 'Expenses',
+                value: '\$650',
+                footer: '↓ 8% from last month',
+                background: Color(0xFFFFEEEE),
+              ),
+            ),
+
+            SizedBox(
+              width: cardWidth,
+              height: 125,
+              child: const _OverviewCard(
+                icon: Icons.savings_outlined,
+                title: 'Savings',
+                value: '\$1,200',
+                footer: '↑ 15% from last month',
+                background: Color(0xFFF2E8FF),
+              ),
+            ),
+
+            SizedBox(
+              width: cardWidth,
+              height: 125,
+              child: const _OverviewCard(
+                icon: Icons.payments_outlined,
+                title: 'Budget Left',
+                value: '\$300',
+                footer: '32% of budget',
+                background: Color(0xFFFFF7BF),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
+
+  // =========================================================
+  // TRANSACTIONS
+  // =========================================================
 
   Widget _buildTransactionsHeader() {
     return const Row(
@@ -178,12 +251,16 @@ class DashboardScreen extends StatelessWidget {
         Text(
           'Recent Transactions',
           style: TextStyle(
-            fontSize: 21,
+            fontSize: 19,
             fontWeight: FontWeight.bold,
             color: Color(0xFF111827),
           ),
         ),
-        Text('See All', style: TextStyle(color: Color(0xFF2563EB))),
+
+        Text(
+          'See All',
+          style: TextStyle(color: Color(0xFF2563EB), fontSize: 13),
+        ),
       ],
     );
   }
@@ -196,25 +273,29 @@ class DashboardScreen extends StatelessWidget {
     required String date,
   }) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
+            color: Color(0x10000000),
+            blurRadius: 8,
+            offset: Offset(0, 3),
           ),
         ],
       ),
       child: Row(
         children: [
           CircleAvatar(
+            radius: 18,
             backgroundColor: const Color(0xFFE8FAF5),
-            child: Icon(icon, color: const Color(0xFF0E9F99)),
+            child: Icon(icon, color: const Color(0xFF0E9F99), size: 20),
           ),
-          const SizedBox(width: 14),
+
+          const SizedBox(width: 12),
+
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,23 +304,30 @@ class DashboardScreen extends StatelessWidget {
                   title,
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
+
+                const SizedBox(height: 2),
+
                 Text(
                   category,
                   style: const TextStyle(
                     color: Color(0xFF94A3B8),
-                    fontSize: 12,
+                    fontSize: 11,
                   ),
                 ),
               ],
             ),
           ),
+
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(amount, style: const TextStyle(fontWeight: FontWeight.bold)),
+
+              const SizedBox(height: 2),
+
               Text(
                 date,
-                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
               ),
             ],
           ),
@@ -248,26 +336,35 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // BOTTOM NAVIGATION
+  // =========================================================
+
   Widget _buildBottomNavigation() {
     return BottomNavigationBar(
       currentIndex: 0,
       type: BottomNavigationBarType.fixed,
       selectedItemColor: const Color(0xFF10BFB7),
       unselectedItemColor: const Color(0xFF64748B),
+
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
+
         BottomNavigationBarItem(
           icon: Icon(Icons.receipt_long_outlined),
           label: 'Expense',
         ),
+
         BottomNavigationBarItem(
           icon: Icon(Icons.savings_outlined),
           label: 'Budget',
         ),
+
         BottomNavigationBarItem(
           icon: Icon(Icons.analytics_outlined),
           label: 'Reports',
         ),
+
         BottomNavigationBarItem(
           icon: Icon(Icons.person_outline),
           label: 'Profile',
@@ -276,6 +373,10 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 }
+
+// =============================================================
+// OVERVIEW CARD
+// =============================================================
 
 class _OverviewCard extends StatelessWidget {
   const _OverviewCard({
@@ -295,26 +396,44 @@ class _OverviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon),
-          const SizedBox(height: 6),
-          Text(title),
+          Icon(icon, size: 20, color: const Color(0xFF111827)),
+
+          const SizedBox(height: 4),
+
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: Color(0xFF334155)),
+          ),
+
+          const SizedBox(height: 2),
+
           Text(
             value,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF111827),
+            ),
           ),
-          const SizedBox(height: 4),
+
+          const SizedBox(height: 3),
+
           Text(
             footer,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFF10B981), fontSize: 11),
+            style: const TextStyle(color: Color(0xFF10B981), fontSize: 9),
           ),
         ],
       ),
