@@ -21,15 +21,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     setState(() => _isLoggingOut = true);
     final result = await widget.authController.logout();
 
-    if (!mounted) {
+    if (result.isSuccess) {
+      if (navigator.mounted) {
+        navigator.popUntil((route) => route.isFirst);
+      }
+      if (messenger.mounted) {
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(result.message)));
+      }
       return;
     }
 
-    if (result.isSuccess) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
+    if (!mounted) {
       return;
     }
 

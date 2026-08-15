@@ -34,6 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     FocusScope.of(context).unfocus();
+    final messenger = ScaffoldMessenger.of(context);
     setState(() => _isLoading = true);
 
     final result = await widget.authController.login(
@@ -41,14 +42,21 @@ class _LoginScreenState extends State<LoginScreen> {
       password: _passwordController.text,
     );
 
+    if (result.isSuccess) {
+      if (messenger.mounted) {
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(result.message)));
+      }
+      return;
+    }
+
     if (!mounted) {
       return;
     }
 
-    if (!result.isSuccess) {
-      setState(() => _isLoading = false);
-      _showMessage(result.message, isError: true);
-    }
+    setState(() => _isLoading = false);
+    _showMessage(result.message, isError: true);
   }
 
   Future<void> _openForgotPassword() async {
@@ -180,12 +188,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: _isLoading
                                 ? null
                                 : () => Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => RegisterScreen(
-                                          authController: widget.authController,
-                                        ),
+                                    MaterialPageRoute(
+                                      builder: (_) => RegisterScreen(
+                                        authController: widget.authController,
                                       ),
                                     ),
+                                  ),
                             child: const Text('Sign up'),
                           ),
                         ],

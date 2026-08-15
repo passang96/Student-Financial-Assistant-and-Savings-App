@@ -22,24 +22,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return;
     }
 
+    final messenger = ScaffoldMessenger.of(context);
     setState(() => _isLoggingOut = true);
     final result = await widget.authController.logout();
+
+    if (result.isSuccess) {
+      if (messenger.mounted) {
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(result.message)));
+      }
+      return;
+    }
 
     if (!mounted) {
       return;
     }
 
-    if (!result.isSuccess) {
-      setState(() => _isLoggingOut = false);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(result.message),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-    }
+    setState(() => _isLoggingOut = false);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(result.message),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
   }
 
   @override
@@ -59,12 +67,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onPressed: user == null
                     ? null
                     : () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ProfileScreen(
-                              authController: widget.authController,
-                            ),
+                        MaterialPageRoute(
+                          builder: (_) => ProfileScreen(
+                            authController: widget.authController,
                           ),
                         ),
+                      ),
                 icon: const Icon(Icons.account_circle_outlined),
               ),
               IconButton(

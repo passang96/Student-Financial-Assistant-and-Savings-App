@@ -36,6 +36,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     FocusScope.of(context).unfocus();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     setState(() => _isLoading = true);
 
     final result = await widget.authController.register(
@@ -45,12 +47,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
       confirmPassword: _confirmPasswordController.text,
     );
 
-    if (!mounted) {
+    if (result.isSuccess) {
+      if (navigator.mounted) {
+        navigator.popUntil((route) => route.isFirst);
+      }
+      if (messenger.mounted) {
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(result.message)));
+      }
       return;
     }
 
-    if (result.isSuccess) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
+    if (!mounted) {
       return;
     }
 
@@ -90,8 +99,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       Text(
                         'Start tracking your goals today',
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 28),
                       TextFormField(
