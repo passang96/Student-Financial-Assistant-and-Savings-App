@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -14,7 +16,36 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  late final StreamSubscription<User?> _authStateSubscription;
   bool _isLoggingOut = false;
+  bool _isReturningToLogin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _authStateSubscription = widget.authController.authStateChanges.listen(
+      _handleAuthStateChange,
+    );
+  }
+
+  void _handleAuthStateChange(User? user) {
+    if (user != null || _isLoggingOut || _isReturningToLogin || !mounted) {
+      return;
+    }
+
+    _isReturningToLogin = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authStateSubscription.cancel();
+    super.dispose();
+  }
 
   Future<void> _logout() async {
     if (_isLoggingOut) {
