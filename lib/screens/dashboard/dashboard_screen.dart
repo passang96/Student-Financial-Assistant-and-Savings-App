@@ -1,388 +1,399 @@
 import 'package:flutter/material.dart';
 import '../budget/budget_screen.dart';
+import '../transactions/add_expense_screen.dart';
+import '../transactions/add_income_screen.dart';
+import '../transactions/transaction_history_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+  final String userName;
+  final double balance;
+  final double income;
+  final double expenses;
+  final double budgetRemaining;
+  final double savings;
+
+  const DashboardScreen({
+    super.key,
+    this.userName = 'User',
+    this.balance = 0,
+    this.income = 0,
+    this.expenses = 0,
+    this.budgetRemaining = 0,
+    this.savings = 0,
+  });
+
+  void _openScreen(BuildContext context, Widget screen) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => screen,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF6F7FB),
       body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(36),
-                  ),
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildOverviewHeader(),
-                      const SizedBox(height: 24),
-                      _buildOverviewCards(),
-                      const SizedBox(height: 26),
-                      _buildTransactionsHeader(),
-                      const SizedBox(height: 12),
-                      _buildTransaction(
-                        icon: Icons.lunch_dining,
-                        title: 'Lunch',
-                        category: 'Food & Drinks',
-                        amount: '-\$12.50',
-                        date: 'Today',
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1100),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Color(0xFF22C7C0),
+                          Color(0xFF0F9F99),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      _buildTransaction(
-                        icon: Icons.directions_bus,
-                        title: 'Bus Fare',
-                        category: 'Transport',
-                        amount: '-\$2.00',
-                        date: 'Yesterday',
+                      borderRadius: BorderRadius.only(
+                        bottomLeft: Radius.circular(24),
+                        bottomRight: Radius.circular(24),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNavigation(context),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(28, 34, 28, 30),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Color(0xFF20C9C3),
-            Color(0xFF0E9F99),
-          ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
-      child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Dashboard',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Hello, Tayyaba! 👋',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 30,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Icon(
-                Icons.notifications,
-                color: Color(0xFF111827),
-                size: 30,
-              ),
-              Positioned(
-                right: -5,
-                top: -7,
-                child: CircleAvatar(
-                  radius: 9,
-                  backgroundColor: Colors.redAccent,
-                  child: Text(
-                    '3',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Dashboard',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Hello, $userName! 👋',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Here is your financial overview.',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Notifications',
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'You have no new notifications',
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.notifications_outlined,
+                            color: Colors.white,
+                            size: 29,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
+
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Overview',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF172033),
+                            ),
+                          ),
+                        ),
+                        Text(
+                          'This Month',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        int columns;
+
+                        if (constraints.maxWidth >= 950) {
+                          columns = 5;
+                        } else if (constraints.maxWidth >= 600) {
+                          columns = 3;
+                        } else {
+                          columns = 2;
+                        }
+
+                        return GridView.count(
+                          crossAxisCount: columns,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          childAspectRatio: 1.35,
+                          children: [
+                            _FinancialCard(
+                              title: 'Balance',
+                              amount: balance,
+                              icon: Icons.account_balance_wallet_outlined,
+                              colour: const Color(0xFF0F9F99),
+                              backgroundColour: const Color(0xFFE6FFFC),
+                            ),
+                            _FinancialCard(
+                              title: 'Income',
+                              amount: income,
+                              icon: Icons.trending_up,
+                              colour: Colors.green,
+                              backgroundColour: const Color(0xFFECFDF3),
+                            ),
+                            _FinancialCard(
+                              title: 'Expenses',
+                              amount: expenses,
+                              icon: Icons.trending_down,
+                              colour: Colors.red,
+                              backgroundColour: const Color(0xFFFFEEEE),
+                            ),
+                            _FinancialCard(
+                              title: 'Budget Remaining',
+                              amount: budgetRemaining,
+                              icon: Icons.pie_chart_outline,
+                              colour: Colors.orange,
+                              backgroundColour: const Color(0xFFFFF7ED),
+                            ),
+                            _FinancialCard(
+                              title: 'Savings',
+                              amount: savings,
+                              icon: Icons.savings_outlined,
+                              colour: Colors.blue,
+                              backgroundColour: const Color(0xFFEFF6FF),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 26, 16, 12),
+                    child: Text(
+                      'Quick Actions',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF172033),
+                      ),
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        _QuickActionButton(
+                          title: 'Add Income',
+                          icon: Icons.add_circle_outline,
+                          colour: Colors.green,
+                          onTap: () => _openScreen(
+                            context,
+                            const AddIncomeScreen(),
+                          ),
+                        ),
+                        _QuickActionButton(
+                          title: 'Add Expense',
+                          icon: Icons.remove_circle_outline,
+                          colour: Colors.red,
+                          onTap: () => _openScreen(
+                            context,
+                            const AddExpenseScreen(),
+                          ),
+                        ),
+                        _QuickActionButton(
+                          title: 'Transactions',
+                          icon: Icons.receipt_long_outlined,
+                          colour: Colors.blue,
+                          onTap: () => _openScreen(
+                            context,
+                            const TransactionHistoryScreen(),
+                          ),
+                        ),
+                        _QuickActionButton(
+                          title: 'Budget',
+                          icon: Icons.pie_chart_outline,
+                          colour: Colors.orange,
+                          onTap: () => _openScreen(
+                            context,
+                            const BudgetScreen(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE6FFFC),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.sync,
+                            color: Color(0xFF0F766E),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Financial totals are calculated automatically '
+                              'from saved transactions.',
+                              style: TextStyle(
+                                color: Color(0xFF0F766E),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOverviewHeader() {
-    return const Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          'Overview',
-          style: TextStyle(
-            fontSize: 25,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF111827),
-          ),
-        ),
-        Text(
-          'This Month ▼',
-          style: TextStyle(
-            color: Color(0xFF64748B),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOverviewCards() {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 18,
-      mainAxisSpacing: 18,
-      childAspectRatio: 1.2,
-      children: const [
-        _OverviewCard(
-          icon: Icons.account_balance_wallet,
-          title: 'Total Balance',
-          value: '\$2,500',
-          footer: '↑ 12% from last month',
-          background: Color(0xFFE1FAF8),
-        ),
-        _OverviewCard(
-          icon: Icons.shopping_cart,
-          title: 'Expenses',
-          value: '\$650',
-          footer: '↓ 8% from last month',
-          background: Color(0xFFFFEEEE),
-        ),
-        _OverviewCard(
-          icon: Icons.savings_outlined,
-          title: 'Savings',
-          value: '\$1,200',
-          footer: '↑ 15% from last month',
-          background: Color(0xFFF2E8FF),
-        ),
-        _OverviewCard(
-          icon: Icons.payments_outlined,
-          title: 'Budget Left',
-          value: '\$300',
-          footer: '32% of budget',
-          background: Color(0xFFFFF7BF),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTransactionsHeader() {
-    return const Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          'Recent Transactions',
-          style: TextStyle(
-            fontSize: 21,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF111827),
-          ),
-        ),
-        Text(
-          'See All',
-          style: TextStyle(
-            color: Color(0xFF2563EB),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTransaction({
-    required IconData icon,
-    required String title,
-    required String category,
-    required String amount,
-    required String date,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: const Color(0xFFE8FAF5),
-            child: Icon(
-              icon,
-              color: const Color(0xFF0E9F99),
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  category,
-                  style: const TextStyle(
-                    color: Color(0xFF94A3B8),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                amount,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                date,
-                style: const TextStyle(
-                  color: Color(0xFF94A3B8),
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
-    );
-  }
-
-  Widget _buildBottomNavigation(BuildContext context) {
- return BottomNavigationBar(
-  currentIndex: 0,  
-   onTap: (index) {
-  if (index == 2) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const BudgetScreen(),
-      ),
-    );
-  } else if (index != 0) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('This page will be available soon.'),
-      ),
-    );
-  }
-},
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: const Color(0xFF10BFB7),
-      unselectedItemColor: const Color(0xFF64748B),
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          label: 'Home',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.receipt_long_outlined),
-          label: 'Expense',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.savings_outlined),
-          label: 'Budget',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.analytics_outlined),
-          label: 'Reports',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          label: 'Profile',
-        ),
-      ],
     );
   }
 }
 
-class _OverviewCard extends StatelessWidget {
-  const _OverviewCard({
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.footer,
-    required this.background,
-  });
-
-  final IconData icon;
+class _FinancialCard extends StatelessWidget {
   final String title;
-  final String value;
-  final String footer;
-  final Color background;
+  final double amount;
+  final IconData icon;
+  final Color colour;
+  final Color backgroundColour;
+
+  const _FinancialCard({
+    required this.title,
+    required this.amount,
+    required this.icon,
+    required this.colour,
+    required this.backgroundColour,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(24),
+    return Card(
+      color: backgroundColour,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon),
-          const SizedBox(height: 6),
-          Text(title),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: colour,
+              size: 28,
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            footer,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF10B981),
-              fontSize: 11,
+            const SizedBox(height: 7),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              style: const TextStyle(
+                color: Color(0xFF667085),
+                fontSize: 13,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              '\$${amount.toStringAsFixed(2)}',
+              style: TextStyle(
+                color: colour,
+                fontSize: 19,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
 
+class _QuickActionButton extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color colour;
+  final VoidCallback onTap;
+
+  const _QuickActionButton({
+    required this.title,
+    required this.icon,
+    required this.colour,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 200,
+      height: 54,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, color: colour),
+        label: Text(
+          title,
+          style: TextStyle(
+            color: colour,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: Colors.white,
+          side: BorderSide(color: colour),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
+  }
 }
