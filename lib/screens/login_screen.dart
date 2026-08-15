@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
-import 'dashboard/dashboard_screen.dart';
+import 'main_navigation_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -37,46 +37,26 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    final String email = _emailController.text.trim();
-    final String password = _passwordController.text;
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
 
     try {
-      debugPrint('===== FIREBASE LOGIN START =====');
-      debugPrint('Attempting login for: $email');
-
       final UserCredential credential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: password);
 
-      final User? user = credential.user;
+      debugPrint('LOGIN SUCCESS');
+      debugPrint('UID: ${credential.user?.uid}');
+      debugPrint('Email: ${credential.user?.email}');
+      debugPrint('Name: ${credential.user?.displayName}');
 
-      debugPrint('===== FIREBASE LOGIN SUCCESS =====');
-      debugPrint('UID: ${user?.uid}');
-      debugPrint('Email: ${user?.email}');
-      debugPrint('Display Name: ${user?.displayName}');
+      if (!mounted) return;
 
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Login successful'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const DashboardScreen()),
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+        (route) => false,
       );
     } on FirebaseAuthException catch (e) {
-      debugPrint('===== FIREBASE LOGIN ERROR =====');
-      debugPrint('Code: ${e.code}');
-      debugPrint('Message: ${e.message}');
-
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       String message;
 
@@ -86,15 +66,12 @@ class _LoginScreenState extends State<LoginScreen> {
           break;
 
         case 'wrong-password':
-          message = 'Incorrect password.';
+        case 'invalid-credential':
+          message = 'Incorrect email or password.';
           break;
 
         case 'invalid-email':
           message = 'Please enter a valid email address.';
-          break;
-
-        case 'invalid-credential':
-          message = 'Incorrect email or password.';
           break;
 
         case 'user-disabled':
@@ -102,11 +79,11 @@ class _LoginScreenState extends State<LoginScreen> {
           break;
 
         case 'too-many-requests':
-          message = 'Too many login attempts. Please try again later.';
+          message = 'Too many attempts. Please try again later.';
           break;
 
         case 'network-request-failed':
-          message = 'Network error. Please check your internet connection.';
+          message = 'Please check your internet connection.';
           break;
 
         default:
@@ -116,14 +93,8 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
-    } catch (e, stackTrace) {
-      debugPrint('===== UNKNOWN LOGIN ERROR =====');
-      debugPrint('Error: $e');
-      debugPrint('Stack Trace: $stackTrace');
-
-      if (!mounted) {
-        return;
-      }
+    } catch (e) {
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -138,16 +109,6 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     }
-  }
-
-  Future<void> _handleGoogleLogin() async {
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Google login will be implemented later')),
-    );
   }
 
   InputDecoration _buildInputDecoration(
@@ -236,7 +197,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
-                  autocorrect: false,
                   decoration: _buildInputDecoration(
                     'Email',
                     'Enter your email',
@@ -250,7 +210,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     }
 
                     if (!email.contains('@')) {
-                      return 'Enter a valid email address';
+                      return 'Enter a valid email';
                     }
 
                     return null;
@@ -295,8 +255,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         });
                       },
                     ),
+
                     const Text('Remember me'),
+
                     const Spacer(),
+
                     TextButton(
                       onPressed: () {},
                       child: const Text('Forgot Password?'),
@@ -349,14 +312,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildSocialButton(Icons.g_mobiledata, _handleGoogleLogin),
+                    _buildSocialButton(Icons.g_mobiledata, () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Google login will be implemented later.',
+                          ),
+                        ),
+                      );
+                    }),
+
                     const SizedBox(width: 16),
 
                     _buildSocialButton(Icons.apple, () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
-                            'Apple login will be implemented later',
+                            'Apple login will be implemented later.',
                           ),
                         ),
                       );
@@ -364,15 +336,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(width: 16),
 
-                    _buildSocialButton(Icons.mail_outline, () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Email login is already available above',
-                          ),
-                        ),
-                      );
-                    }),
+                    _buildSocialButton(Icons.mail_outline, () {}),
                   ],
                 ),
 
@@ -382,6 +346,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text("Don't have an account? "),
+
                     GestureDetector(
                       onTap: () {
                         Navigator.of(context).push(
