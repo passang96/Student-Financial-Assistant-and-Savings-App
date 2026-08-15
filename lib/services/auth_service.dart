@@ -3,204 +3,185 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/auth_result.dart';
 
 class AuthService {
-  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
+  AuthService({FirebaseAuth? firebaseAuth})
+      : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
 
-  // LOGIN
+  final FirebaseAuth _firebaseAuth;
+
   Future<AuthResult> login({
     required String email,
     required String password,
   }) async {
+    final cleanEmail = email.trim();
+
+    if (cleanEmail.isEmpty) {
+      return AuthResult.failure('Email is required.');
+    }
+    if (!_isValidEmail(cleanEmail)) {
+      return AuthResult.failure('Please enter a valid email address.');
+    }
+    if (password.isEmpty) {
+      return AuthResult.failure('Password is required.');
+    }
+
     try {
-      final cleanEmail = email.trim();
-      final cleanPassword = password.trim();
-
-      if (cleanEmail.isEmpty) {
-        return AuthResult.failure('Email is required.');
-      }
-
-      if (!_isValidEmail(cleanEmail)) {
-        return AuthResult.failure(
-          'Please enter a valid email address.',
-        );
-      }
-
-      if (cleanPassword.isEmpty) {
-        return AuthResult.failure(
-          'Password is required.',
-        );
-      }
-
-      if (cleanPassword.length < 6) {
-        return AuthResult.failure(
-          'Password must be at least 6 characters.',
-        );
-      }
-
-      final UserCredential credential =
-          await _firebaseAuth.signInWithEmailAndPassword(
+      final credential = await _firebaseAuth.signInWithEmailAndPassword(
         email: cleanEmail,
-        password: cleanPassword,
+        password: password,
       );
+      final user = credential.user;
+
+      if (user == null) {
+        return AuthResult.failure(
+          'Login completed without a user account. Please try again.',
+        );
+      }
 
       return AuthResult.success(
         message: 'Login successful.',
-        userId: credential.user?.uid,
+        userId: user.uid,
       );
-    } on FirebaseAuthException catch (e) {
-      return AuthResult.failure(
-        _firebaseErrorMessage(e),
-      );
-    } catch (e) {
-      return AuthResult.failure(
-        'Something went wrong. Please try again.',
-      );
+    } on FirebaseAuthException catch (error) {
+      return AuthResult.failure(_firebaseErrorMessage(error));
+    } catch (_) {
+      return AuthResult.failure('Something went wrong. Please try again.');
     }
   }
 
-  // REGISTER
   Future<AuthResult> register({
     required String name,
     required String email,
     required String password,
     required String confirmPassword,
   }) async {
+    final cleanName = name.trim();
+    final cleanEmail = email.trim();
+
+    if (cleanName.isEmpty) {
+      return AuthResult.failure('Name is required.');
+    }
+    if (cleanName.length < 2) {
+      return AuthResult.failure('Name must be at least 2 characters.');
+    }
+    if (cleanEmail.isEmpty) {
+      return AuthResult.failure('Email is required.');
+    }
+    if (!_isValidEmail(cleanEmail)) {
+      return AuthResult.failure('Please enter a valid email address.');
+    }
+    if (password.isEmpty) {
+      return AuthResult.failure('Password is required.');
+    }
+    if (password.length < 6) {
+      return AuthResult.failure('Password must be at least 6 characters.');
+    }
+    if (confirmPassword.isEmpty) {
+      return AuthResult.failure('Please confirm your password.');
+    }
+    if (password != confirmPassword) {
+      return AuthResult.failure('Passwords do not match.');
+    }
+
     try {
-      final cleanName = name.trim();
-      final cleanEmail = email.trim();
-      final cleanPassword = password.trim();
-      final cleanConfirmPassword = confirmPassword.trim();
-
-      if (cleanName.isEmpty) {
-        return AuthResult.failure(
-          'Name is required.',
-        );
-      }
-
-      if (cleanEmail.isEmpty) {
-        return AuthResult.failure(
-          'Email is required.',
-        );
-      }
-
-      if (!_isValidEmail(cleanEmail)) {
-        return AuthResult.failure(
-          'Please enter a valid email address.',
-        );
-      }
-
-      if (cleanPassword.isEmpty) {
-        return AuthResult.failure(
-          'Password is required.',
-        );
-      }
-
-      if (cleanPassword.length < 6) {
-        return AuthResult.failure(
-          'Password must be at least 6 characters.',
-        );
-      }
-
-      if (cleanConfirmPassword.isEmpty) {
-        return AuthResult.failure(
-          'Please confirm your password.',
-        );
-      }
-
-      if (cleanPassword != cleanConfirmPassword) {
-        return AuthResult.failure(
-          'Passwords do not match.',
-        );
-      }
-
-      final UserCredential credential =
-          await _firebaseAuth.createUserWithEmailAndPassword(
+      final credential = await _firebaseAuth.createUserWithEmailAndPassword(
         email: cleanEmail,
-        password: cleanPassword,
+        password: password,
       );
+      final user = credential.user;
 
-      await credential.user?.updateDisplayName(cleanName);
+      if (user == null) {
+        return AuthResult.failure(
+          'Registration completed without a user account. Please try again.',
+        );
+      }
+
+      await user.updateDisplayName(cleanName);
+      await user.reload();
 
       return AuthResult.success(
         message: 'Registration successful.',
-        userId: credential.user?.uid,
+        userId: _firebaseAuth.currentUser?.uid ?? user.uid,
       );
-    } on FirebaseAuthException catch (e) {
-      return AuthResult.failure(
-        _firebaseErrorMessage(e),
-      );
-    } catch (e) {
-      return AuthResult.failure(
-        'Something went wrong. Please try again.',
-      );
+    } on FirebaseAuthException catch (error) {
+      return AuthResult.failure(_firebaseErrorMessage(error));
+    } catch (_) {
+      return AuthResult.failure('Something went wrong. Please try again.');
     }
   }
 
-  // LOGOUT
+  Future<AuthResult> forgotPassword({required String email}) async {
+    final cleanEmail = email.trim();
+
+    if (cleanEmail.isEmpty) {
+      return AuthResult.failure('Email is required.');
+    }
+    if (!_isValidEmail(cleanEmail)) {
+      return AuthResult.failure('Please enter a valid email address.');
+    }
+
+    try {
+      await _firebaseAuth.sendPasswordResetEmail(email: cleanEmail);
+      return AuthResult.success(
+        message: 'If an account exists for that email, a reset link was sent.',
+      );
+    } on FirebaseAuthException catch (error) {
+      return AuthResult.failure(_firebaseErrorMessage(error));
+    } catch (_) {
+      return AuthResult.failure('Something went wrong. Please try again.');
+    }
+  }
+
   Future<AuthResult> logout() async {
     try {
       await _firebaseAuth.signOut();
-
-      return AuthResult.success(
-        message: 'Logged out successfully.',
-      );
-    } catch (e) {
-      return AuthResult.failure(
-        'Unable to logout.',
-      );
+      return AuthResult.success(message: 'Logged out successfully.');
+    } on FirebaseAuthException catch (error) {
+      return AuthResult.failure(_firebaseErrorMessage(error));
+    } catch (_) {
+      return AuthResult.failure('Unable to log out. Please try again.');
     }
   }
 
-  User? get currentUser {
-    return _firebaseAuth.currentUser;
-  }
-
-  bool get isLoggedIn {
-    return _firebaseAuth.currentUser != null;
-  }
+  User? get currentUser => _firebaseAuth.currentUser;
+  String? get currentUserId => currentUser?.uid;
+  String? get currentUserEmail => currentUser?.email;
+  String? get currentUserName => currentUser?.displayName;
+  bool get isLoggedIn => currentUser != null;
+  Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
+  Stream<User?> get userChanges => _firebaseAuth.userChanges();
 
   bool _isValidEmail(String email) {
-    final emailRegex = RegExp(
-      r'^[\w\.-]+@[\w\.-]+\.\w+$',
-    );
-
-    return emailRegex.hasMatch(email);
+    return RegExp(
+      r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$',
+    ).hasMatch(email);
   }
 
-  String _firebaseErrorMessage(
-    FirebaseAuthException e,
-  ) {
-    switch (e.code) {
+  String _firebaseErrorMessage(FirebaseAuthException error) {
+    switch (error.code) {
       case 'invalid-email':
-        return 'Invalid email address.';
-
+        return 'Please enter a valid email address.';
       case 'user-disabled':
         return 'This account has been disabled.';
-
       case 'user-not-found':
-        return 'No account found with this email.';
-
+        return 'No account was found for that email.';
       case 'wrong-password':
       case 'invalid-credential':
         return 'Incorrect email or password.';
-
       case 'email-already-in-use':
-        return 'An account already exists with this email.';
-
+        return 'An account already exists for that email.';
       case 'weak-password':
-        return 'Password is too weak.';
-
+        return 'Choose a stronger password with at least 6 characters.';
       case 'operation-not-allowed':
-        return 'Email/password authentication is not enabled.';
-
+        return 'Email and password authentication is not enabled.';
       case 'too-many-requests':
-        return 'Too many attempts. Please try again later.';
-
+        return 'Too many attempts. Please wait and try again.';
       case 'network-request-failed':
-        return 'Please check your internet connection.';
-
+        return 'Check your internet connection and try again.';
+      case 'invalid-api-key':
+      case 'app-not-authorized':
+        return 'Firebase authentication is not configured correctly.';
       default:
-        return e.message ??
-            'Authentication failed.';
+        return 'Authentication failed. Please try again.';
     }
   }
 }

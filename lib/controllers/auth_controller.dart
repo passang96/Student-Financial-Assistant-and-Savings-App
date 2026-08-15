@@ -1,17 +1,19 @@
+import 'package:firebase_auth/firebase_auth.dart';
+
 import '../models/auth_result.dart';
 import '../services/auth_service.dart';
 
 class AuthController {
-  final AuthService _authService = AuthService();
+  AuthController({AuthService? authService})
+      : _authService = authService ?? AuthService();
+
+  final AuthService _authService;
 
   Future<AuthResult> login({
     required String email,
     required String password,
-  }) async {
-    return await _authService.login(
-      email: email,
-      password: password,
-    );
+  }) {
+    return _authService.login(email: email, password: password);
   }
 
   Future<AuthResult> register({
@@ -19,8 +21,8 @@ class AuthController {
     required String email,
     required String password,
     required String confirmPassword,
-  }) async {
-    return await _authService.register(
+  }) {
+    return _authService.register(
       name: name,
       email: email,
       password: password,
@@ -28,11 +30,17 @@ class AuthController {
     );
   }
 
-  Future<AuthResult> logout() async {
-    return await _authService.logout();
+  Future<AuthResult> forgotPassword({required String email}) {
+    return _authService.forgotPassword(email: email);
   }
 
-  bool get isLoggedIn {
-    return _authService.isLoggedIn;
-  }
+  Future<AuthResult> logout() => _authService.logout();
+
+  User? get currentUser => _authService.currentUser;
+  String? get currentUserId => _authService.currentUserId;
+  String? get currentUserEmail => _authService.currentUserEmail;
+  String? get currentUserName => _authService.currentUserName;
+  bool get isLoggedIn => _authService.isLoggedIn;
+  Stream<User?> get authStateChanges => _authService.authStateChanges;
+  Stream<User?> get userChanges => _authService.userChanges;
 }
