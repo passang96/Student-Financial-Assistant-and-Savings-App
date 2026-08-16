@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'budget/budget_screen.dart';
 import 'dashboard/dashboard_screen.dart';
+import 'profile/profile_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -18,8 +19,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     setState(() {
       _currentIndex = index;
     });
-
-    debugPrint('PAGE CHANGED TO: $index');
   }
 
   Widget _getCurrentScreen() {
@@ -43,10 +42,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         );
 
       case 4:
-        return const ComingSoonScreen(
-          title: 'Profile',
-          icon: Icons.person_outline,
-        );
+        return const ProfileScreen();
 
       default:
         return const DashboardScreen();
@@ -54,19 +50,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   Future<void> _handleBackButton() async {
-    debugPrint('ANDROID BACK PRESSED');
-    debugPrint('CURRENT PAGE: $_currentIndex');
-
     if (_currentIndex != 0) {
       setState(() {
         _currentIndex = 0;
       });
 
-      debugPrint('RETURNED TO HOME');
       return;
     }
-
-    debugPrint('HOME PAGE - EXITING APP');
 
     await SystemNavigator.pop();
   }
@@ -74,7 +64,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope<Object?>(
-      // ALWAYS stop Android from automatically closing/popping this route.
       canPop: false,
 
       onPopInvokedWithResult: (didPop, result) {
