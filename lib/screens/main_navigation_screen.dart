@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'budget/budget_screen.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'profile/profile_screen.dart';
+import 'reports/reports_screen.dart';
 import 'transactions/transaction_history_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -34,10 +35,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         return const BudgetScreen();
 
       case 3:
-        return const ComingSoonScreen(
-          title: 'Reports',
-          icon: Icons.analytics_outlined,
-        );
+        return const ReportsScreen();
 
       case 4:
         return const ProfileScreen();
@@ -174,46 +172,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   color: const Color(0xFF10BFB7),
                   borderRadius: BorderRadius.circular(10),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class ComingSoonScreen extends StatelessWidget {
-  const ComingSoonScreen({super.key, required this.title, required this.icon});
-
-  final String title;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 70, color: const Color(0xFF10BFB7)),
-              const SizedBox(height: 20),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF111827),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                '$title screen will be connected\n'
-                'when the allocated work is completed.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 15, color: Color(0xFF64748B)),
               ),
             ],
           ),
