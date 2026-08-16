@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../services/firestore_service.dart';
+
 class AddIncomeScreen extends StatefulWidget {
   const AddIncomeScreen({super.key});
 
@@ -12,6 +14,8 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
 
+  final FirestoreService _firestoreService = FirestoreService();
+
   final List<String> _incomeSources = [
     'Salary',
     'Business',
@@ -23,6 +27,8 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
 
   String? _selectedSource;
   DateTime _selectedDate = DateTime.now();
+
+  bool _isSaving = false;
 
   String get _formattedDate {
     return '${_selectedDate.day.toString().padLeft(2, '0')}/'
@@ -52,36 +58,68 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
     }
   }
 
-  void _saveIncome() {
+  Future<void> _saveIncome() async {
+    if (_isSaving) {
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    final income = {
-      'amount': double.parse(_amountController.text.trim()),
-      'category': _selectedSource,
-      'date': _selectedDate,
-      'notes': _notesController.text.trim(),
-      'type': 'income',
-    };
+    final double amount = double.parse(_amountController.text.trim());
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Income saved successfully'),
-        backgroundColor: Colors.green,
-      ),
-    );
-
-    // Passang will connect this income information to Firestore.
-    debugPrint('Income: $income');
-
-    _amountController.clear();
-    _notesController.clear();
+    final String source = _selectedSource!;
+    final String notes = _notesController.text.trim();
 
     setState(() {
-      _selectedSource = null;
-      _selectedDate = DateTime.now();
+      _isSaving = true;
     });
+
+    try {
+      await _firestoreService.addTransaction(
+        type: 'income',
+        amount: amount,
+        category: source,
+        date: _selectedDate,
+        notes: notes,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Income saved successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      _amountController.clear();
+      _notesController.clear();
+
+      setState(() {
+        _selectedSource = null;
+        _selectedDate = DateTime.now();
+        _isSaving = false;
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSaving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not save income: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -132,6 +170,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
 
                       TextFormField(
                         controller: _amountController,
+                        enabled: !_isSaving,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -176,11 +215,13 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
                             child: Text(source),
                           );
                         }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedSource = value;
-                          });
-                        },
+                        onChanged: _isSaving
+                            ? null
+                            : (value) {
+                                setState(() {
+                                  _selectedSource = value;
+                                });
+                              },
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Please select an income source';
@@ -193,7 +234,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
                       const SizedBox(height: 18),
 
                       InkWell(
-                        onTap: _chooseDate,
+                        onTap: _isSaving ? null : _chooseDate,
                         borderRadius: BorderRadius.circular(12),
                         child: InputDecorator(
                           decoration: InputDecoration(
@@ -212,6 +253,7 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
 
                       TextFormField(
                         controller: _notesController,
+                        enabled: !_isSaving,
                         maxLines: 4,
                         maxLength: 200,
                         decoration: InputDecoration(
@@ -234,11 +276,20 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
                         width: double.infinity,
                         height: 52,
                         child: ElevatedButton.icon(
-                          onPressed: _saveIncome,
-                          icon: const Icon(Icons.save_outlined),
-                          label: const Text(
-                            'Save Income',
-                            style: TextStyle(
+                          onPressed: _isSaving ? null : _saveIncome,
+                          icon: _isSaving
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.save_outlined),
+                          label: Text(
+                            _isSaving ? 'Saving...' : 'Save Income',
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -246,6 +297,8 @@ class _AddIncomeScreenState extends State<AddIncomeScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF14B8B1),
                             foregroundColor: Colors.white,
+                            disabledBackgroundColor: const Color(0xFF8DDDD9),
+                            disabledForegroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
