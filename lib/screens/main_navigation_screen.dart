@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'budget/budget_screen.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'profile/profile_screen.dart';
+import 'transactions/transaction_history_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -27,10 +28,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         return const DashboardScreen();
 
       case 1:
-        return const ComingSoonScreen(
-          title: 'Expense',
-          icon: Icons.receipt_long_outlined,
-        );
+        return const TransactionHistoryScreen();
 
       case 2:
         return const BudgetScreen();
@@ -65,7 +63,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget build(BuildContext context) {
     return PopScope<Object?>(
       canPop: false,
-
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) {
           return;
@@ -73,12 +70,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
         _handleBackButton();
       },
-
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
-
         body: _getCurrentScreen(),
-
         bottomNavigationBar: SafeArea(
           top: false,
           child: Container(
