@@ -5,6 +5,9 @@ import '../../constants/app_colors.dart';
 import '../../controllers/auth_controller.dart';
 import '../../widgets/logout_button.dart';
 import '../login_screen.dart';
+import '../notifications/notifications_screen.dart';
+import '../savings/savings_screen.dart';
+import '../transactions/transaction_history_screen.dart';
 import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -50,6 +53,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(result.message), backgroundColor: Colors.red),
     );
+  }
+
+  void _openSavingsGoals() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SavingsScreen()));
+  }
+
+  void _openExpenseHistory() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const TransactionHistoryScreen()));
+  }
+
+  void _openNotifications() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+  }
+
+  void _showComingSoon(String feature) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$feature will be available soon.')));
   }
 
   @override
@@ -170,19 +197,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _ProfileMenuTile(
                 icon: Icons.savings_outlined,
                 label: 'Savings Goals',
-                onTap: () {},
+                onTap: _openSavingsGoals,
               ),
 
               _ProfileMenuTile(
                 icon: Icons.receipt_long_outlined,
                 label: 'Expense History',
-                onTap: () {},
+                onTap: _openExpenseHistory,
               ),
 
               _ProfileMenuTile(
                 icon: Icons.notifications_outlined,
                 label: 'Notifications',
-                onTap: () {},
+                onTap: _openNotifications,
               ),
 
               const SizedBox(height: 20),
@@ -192,13 +219,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _ProfileMenuTile(
                 icon: Icons.help_outline,
                 label: 'Help & FAQ',
-                onTap: () {},
+                onTap: () {
+                  _showComingSoon('Help & FAQ');
+                },
               ),
 
               _ProfileMenuTile(
                 icon: Icons.privacy_tip_outlined,
                 label: 'Privacy Policy',
-                onTap: () {},
+                onTap: () {
+                  _showComingSoon('Privacy Policy');
+                },
               ),
 
               const SizedBox(height: 28),
