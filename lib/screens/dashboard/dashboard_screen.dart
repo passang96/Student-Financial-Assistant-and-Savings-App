@@ -2,7 +2,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../controllers/auth_controller.dart';
+import '../../models/financial_notification.dart';
 import '../../widgets/user_details_card.dart';
+import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -16,6 +18,27 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoggingOut = false;
+  List<FinancialNotification> _notifications = List.of(
+    FinancialNotification.demoNotifications,
+  );
+
+  int get _unreadNotificationCount =>
+      _notifications.where((notification) => !notification.isRead).length;
+
+  void _openNotifications() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => NotificationsScreen(
+          initialNotifications: _notifications,
+          onNotificationsChanged: (notifications) {
+            if (mounted) {
+              setState(() => _notifications = List.of(notifications));
+            }
+          },
+        ),
+      ),
+    );
+  }
 
   Future<void> _logout() async {
     if (_isLoggingOut) {
@@ -62,6 +85,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           appBar: AppBar(
             title: const Text('Dashboard'),
             actions: [
+              IconButton(
+                tooltip: 'Notifications',
+                onPressed: _openNotifications,
+                icon: Badge(
+                  isLabelVisible: _unreadNotificationCount > 0,
+                  label: Text('$_unreadNotificationCount'),
+                  child: const Icon(Icons.notifications_outlined),
+                ),
+              ),
               IconButton(
                 tooltip: 'Profile',
                 onPressed: user == null
