@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../services/budget_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/notification_service.dart';
+import '../notifications/notifications_screen.dart';
 import '../transactions/transaction_history_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -278,7 +280,7 @@ class DashboardScreen extends StatelessWidget {
               body: SafeArea(
                 child: Column(
                   children: [
-                    _buildHeader(displayName),
+                    _buildHeader(context, displayName),
 
                     Expanded(
                       child: Container(
@@ -372,7 +374,9 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(String displayName) {
+  Widget _buildHeader(BuildContext context, String displayName) {
+    final NotificationService notificationService = NotificationService();
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
@@ -410,7 +414,60 @@ class DashboardScreen extends StatelessWidget {
             ),
           ),
 
-          const Icon(Icons.notifications, color: Color(0xFF111827), size: 27),
+          StreamBuilder<int>(
+            stream: notificationService.getUnreadCount(),
+            builder: (context, snapshot) {
+              final int unreadCount = snapshot.data ?? 0;
+
+              return IconButton(
+                tooltip: 'Notifications',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
+                  );
+                },
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(
+                      Icons.notifications_outlined,
+                      color: Color(0xFF111827),
+                      size: 28,
+                    ),
+
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: -8,
+                        top: -8,
+                        child: Container(
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          decoration: const BoxDecoration(
+                            color: Colors.redAccent,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            unreadCount > 99 ? '99+' : unreadCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
         ],
       ),
     );

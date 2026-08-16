@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../services/budget_service.dart';
 import '../../services/category_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/notification_service.dart';
 import 'category_management_screen.dart';
 
 class BudgetScreen extends StatefulWidget {
@@ -17,8 +18,13 @@ class _BudgetScreenState extends State<BudgetScreen> {
   final BudgetService _budgetService = BudgetService();
   final FirestoreService _firestoreService = FirestoreService();
   final CategoryService _categoryService = CategoryService();
+  final NotificationService _notificationService = NotificationService();
 
   bool _initialising = true;
+
+  /// Prevents the same notification check from running repeatedly
+  /// while this screen is rebuilding.
+  final Set<String> _checkedNotificationStates = {};
 
   final Map<String, double> _defaultCategoryBudgets = {
     'Rent': 800,
@@ -155,6 +161,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
     try {
       await _budgetService.saveMonthlyBudget(totalBudget: newBudget);
 
+      /// Allow notification checks again because
+      /// the budget limit has changed.
+      _checkedNotificationStates.clear();
+
       if (!mounted) {
         return;
       }
@@ -264,6 +274,12 @@ class _BudgetScreenState extends State<BudgetScreen> {
         limit: newLimit,
       );
 
+      /// Budget changed, so we allow a fresh
+      /// threshold check for this category.
+      _checkedNotificationStates.removeWhere(
+        (key) => key.startsWith('$category|'),
+      );
+
       if (!mounted) {
         return;
       }
@@ -370,6 +386,106 @@ class _BudgetScreenState extends State<BudgetScreen> {
     return progress;
   }
 
+  void _scheduleNotificationChecks({
+    required double totalBudget,
+    required double totalSpent,
+    required Map<String, double> categoryBudgets,
+    required Map<String, double> categorySpending,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkBudgetNotifications(
+        totalBudget: totalBudget,
+        totalSpent: totalSpent,
+        categoryBudgets: categoryBudgets,
+        categorySpending: categorySpending,
+      );
+    });
+  }
+
+  Future<void> _checkBudgetNotifications({
+    required double totalBudget,
+    required double totalSpent,
+    required Map<String, double> categoryBudgets,
+    required Map<String, double> categorySpending,
+  }) async {
+    /// Overall monthly budget notification.
+    if (totalBudget > 0) {
+      final monthlyPercentage = (totalSpent / totalBudget) * 100;
+
+      String monthlyState = 'safe';
+
+      if (monthlyPercentage >= 100) {
+        monthlyState = 'exceeded';
+      } else if (monthlyPercentage >= 80) {
+        monthlyState = 'warning';
+      }
+
+      if (monthlyState != 'safe') {
+        final stateKey = 'Monthly Budget|$monthlyState';
+
+        if (!_checkedNotificationStates.contains(stateKey)) {
+          _checkedNotificationStates.add(stateKey);
+
+          try {
+            await _notificationService.checkBudget(
+              budgetId: 'monthly_budget',
+              category: 'Monthly',
+              budgetAmount: totalBudget,
+              spentAmount: totalSpent,
+            );
+          } catch (e) {
+            debugPrint('Monthly budget notification error: $e');
+          }
+        }
+      }
+    }
+
+    /// Category notifications.
+    for (final entry in categoryBudgets.entries) {
+      final category = entry.key;
+      final limit = entry.value;
+
+      if (limit <= 0) {
+        continue;
+      }
+
+      final spent = categorySpending[category] ?? 0;
+
+      final percentage = (spent / limit) * 100;
+
+      String state = 'safe';
+
+      if (percentage >= 100) {
+        state = 'exceeded';
+      } else if (percentage >= 80) {
+        state = 'warning';
+      }
+
+      if (state == 'safe') {
+        continue;
+      }
+
+      final stateKey = '$category|$state';
+
+      if (_checkedNotificationStates.contains(stateKey)) {
+        continue;
+      }
+
+      _checkedNotificationStates.add(stateKey);
+
+      try {
+        await _notificationService.checkBudget(
+          budgetId: category.toLowerCase().replaceAll(' ', '_'),
+          category: category,
+          budgetAmount: limit,
+          spentAmount: spent,
+        );
+      } catch (e) {
+        debugPrint('$category budget notification error: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_initialising) {
@@ -443,6 +559,15 @@ class _BudgetScreenState extends State<BudgetScreen> {
             final remaining = totalBudget - totalSpent;
 
             final budgetProgress = _safeProgress(totalSpent, totalBudget);
+
+            /// Check whether any real notification
+            /// needs to be created.
+            _scheduleNotificationChecks(
+              totalBudget: totalBudget,
+              totalSpent: totalSpent,
+              categoryBudgets: categoryBudgets,
+              categorySpending: categorySpending,
+            );
 
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _categoryService.getCategories(),
