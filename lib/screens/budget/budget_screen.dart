@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'category_management_screen.dart';
+
 class BudgetScreen extends StatelessWidget {
   const BudgetScreen({super.key});
 
@@ -67,16 +69,46 @@ class BudgetScreen extends StatelessWidget {
 
                       const SizedBox(height: 30),
 
-                      const Text(
-                        'Budget Categories',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF171B2E),
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Budget Categories',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF171B2E),
+                              ),
+                            ),
+                          ),
+
+                          TextButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const CategoryManagementScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.settings_outlined, size: 18),
+                            label: const Text('Manage'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF14B8B1),
+                            ),
+                          ),
+                        ],
                       ),
 
                       const SizedBox(height: 16),
+
+                      const BudgetCategoryCard(
+                        icon: Icons.home_outlined,
+                        title: 'Rent',
+                        amount: '\$0 / \$800',
+                        progress: 0.00,
+                      ),
 
                       const BudgetCategoryCard(
                         icon: Icons.restaurant,
