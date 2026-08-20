@@ -6,6 +6,7 @@ import '../../models/financial_notification.dart';
 import '../../widgets/user_details_card.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
+import '../transactions/csv_import_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key, required this.authController});
@@ -38,6 +39,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openCsvImport() async {
+    final importedCount = await Navigator.of(
+      context,
+    ).push<int>(MaterialPageRoute(builder: (_) => const CsvImportScreen()));
+
+    if (!mounted || importedCount == null) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            '$importedCount transaction${importedCount == 1 ? '' : 's'} '
+            'imported successfully.',
+          ),
+        ),
+      );
   }
 
   Future<void> _logout() async {
@@ -141,6 +162,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                             const SizedBox(height: 24),
                             UserDetailsCard(user: user),
+                            const SizedBox(height: 16),
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      'Add transactions faster',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    const Text(
+                                      'Upload a bank statement, review the '
+                                      'suggested categories, then import it.',
+                                    ),
+                                    const SizedBox(height: 16),
+                                    FilledButton.icon(
+                                      onPressed: _openCsvImport,
+                                      icon: const Icon(
+                                        Icons.upload_file_outlined,
+                                      ),
+                                      label: const Text(
+                                        'Import Bank Statement (.CSV)',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                 ),
