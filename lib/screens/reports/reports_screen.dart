@@ -10,6 +10,21 @@ class ReportsScreen extends StatefulWidget {
 class _ReportsScreenState extends State<ReportsScreen> {
   String selectedMonth = 'August 2026';
 
+  String selectedPeriod = 'Current Month';
+
+  DateTime? fromDate;
+DateTime? toDate;
+
+final List<String> reportPeriods = [
+  'This Week',
+  'Last Week',
+  'This Fortnight',
+  'Last Fortnight',
+  'This Month',
+  'Last Month',
+  'Custom Range',
+];
+
   final List<String> months = [
     'August 2026',
     'July 2026',
@@ -68,8 +83,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildMonthSelector(),
-            const SizedBox(height: 20),
+  _buildPeriodSelector(),
+  const SizedBox(height: 20),
+
+  _buildMonthSelector(),
+  const SizedBox(height: 20),
 
             const Text(
               'Monthly Summary',
@@ -151,8 +169,34 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ),
     );
   }
-
-  Widget _buildMonthSelector() {
+Widget _buildPeriodSelector() {
+  return DropdownButtonFormField<String>(
+    initialValue: selectedPeriod,
+    decoration: const InputDecoration(
+      labelText: 'Select Period',
+      border: OutlineInputBorder(),
+      prefixIcon: Icon(Icons.calendar_month),
+    ),
+    items: const [
+      DropdownMenuItem(
+        value: 'Current Month',
+        child: Text('Current Month'),
+      ),
+      DropdownMenuItem(
+        value: 'Previous Month',
+        child: Text('Previous Month'),
+      ),
+    ],
+    onChanged: (value) {
+      if (value != null) {
+        setState(() {
+          selectedPeriod = value;
+        });
+      }
+    },
+  );
+}
+Widget _buildMonthSelector() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
