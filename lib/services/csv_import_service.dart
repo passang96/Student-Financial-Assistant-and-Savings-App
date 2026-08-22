@@ -28,7 +28,9 @@ class CsvImportService {
     'details',
     'transactiondetails',
     'narration',
+    'narrative',
     'merchant',
+    'merchantname',
     'memo',
     'particulars',
   };
@@ -38,6 +40,7 @@ class CsvImportService {
     'debitamount',
     'withdrawal',
     'withdrawals',
+    'withdrawalamount',
     'moneyout',
   };
   static const _creditHeaders = {
@@ -45,6 +48,7 @@ class CsvImportService {
     'creditamount',
     'deposit',
     'deposits',
+    'depositamount',
     'moneyin',
   };
   static const _typeHeaders = {'type', 'transactiontype', 'debitcredit'};
@@ -64,6 +68,7 @@ class CsvImportService {
       'doordash',
       'menulog',
       'mcdonald',
+      'mcdonalds',
       'food',
     ],
     'Transport': [
@@ -202,11 +207,18 @@ class CsvImportService {
   String suggestCategory(String description) {
     final normalized = description.toLowerCase();
     for (final entry in _categoryKeywords.entries) {
-      if (entry.value.any(normalized.contains)) {
+      if (entry.value.any((keyword) => _containsKeyword(normalized, keyword))) {
         return entry.key;
       }
     }
     return 'Other';
+  }
+
+  bool _containsKeyword(String description, String keyword) {
+    final escapedKeyword = RegExp.escape(keyword.toLowerCase());
+    return RegExp(
+      '(^|[^a-z0-9])$escapedKeyword([^a-z0-9]|\$)',
+    ).hasMatch(description);
   }
 
   _HeaderMapping _findHeaders(List<List<dynamic>> rows) {

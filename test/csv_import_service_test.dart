@@ -60,6 +60,26 @@ void main() {
     expect(transactions.last.type, ImportedTransactionType.income);
   });
 
+  test('supports common narrative and withdrawal amount headers', () {
+    final transactions = service.parse(
+      csvBytes(
+        'Date,Narrative,Withdrawal Amount,Deposit Amount\n'
+        '20/08/2026,Campus bus,5.00,\n'
+        '21/08/2026,Part-time pay,,250.00',
+      ),
+    );
+
+    expect(transactions, hasLength(2));
+    expect(transactions.first.type, ImportedTransactionType.expense);
+    expect(transactions.first.category, 'Transport');
+    expect(transactions.last.type, ImportedTransactionType.income);
+  });
+
+  test('matches category keywords as words rather than substrings', () {
+    expect(service.suggestCategory('Current account transfer'), 'Other');
+    expect(service.suggestCategory('Monthly rent payment'), 'Rent');
+  });
+
   test('reports missing required headers clearly', () {
     expect(
       () => service.parse(csvBytes('When,What,Cost\n20/08/2026,Lunch,12')),
