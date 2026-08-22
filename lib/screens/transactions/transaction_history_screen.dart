@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/firestore_service.dart';
+import '../../utils/date_period.dart';
+import '../../widgets/period_selector.dart';
 import 'add_expense_screen.dart';
 import 'add_income_screen.dart';
 import 'csv_import_screen.dart';
@@ -17,47 +19,29 @@ class TransactionHistoryScreen extends StatefulWidget {
 class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   final FirestoreService _firestoreService = FirestoreService();
 
-  late DateTime _selectedMonth;
+  DatePeriod _selectedPeriod = DatePeriod.thisMonth;
+
+  DateTime? _customStartDate;
+  DateTime? _customEndDate;
+
   String _selectedType = 'All';
   String _selectedCategory = 'All';
-
-  final List<String> _monthNames = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-
-    final now = DateTime.now();
-    _selectedMonth = DateTime(now.year, now.month);
-  }
-
-  List<DateTime> get _availableMonths {
-    final now = DateTime.now();
-
-    return List.generate(12, (index) => DateTime(now.year, now.month - index));
-  }
-
-  String _monthLabel(DateTime date) {
-    return '${_monthNames[date.month - 1]} ${date.year}';
-  }
 
   String _dateLabel(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/'
         '${date.month.toString().padLeft(2, '0')}/'
         '${date.year}';
+  }
+
+  String _currentPeriodLabel() {
+    if (_selectedPeriod == DatePeriod.custom &&
+        _customStartDate != null &&
+        _customEndDate != null) {
+      return '${_dateLabel(_customStartDate!)} - '
+          '${_dateLabel(_customEndDate!)}';
+    }
+
+    return _selectedPeriod.label;
   }
 
   List<Map<String, dynamic>> _convertDocuments(
@@ -95,15 +79,35 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     return ['All', ...categories];
   }
 
+  DateRange? _activeDateRange() {
+    if (_selectedPeriod == DatePeriod.custom) {
+      if (_customStartDate == null || _customEndDate == null) {
+        return null;
+      }
+
+      return resolveDateRange(
+        DatePeriod.custom,
+        customStart: _customStartDate,
+        customEnd: _customEndDate,
+      );
+    }
+
+    return resolveDateRange(_selectedPeriod);
+  }
+
   List<Map<String, dynamic>> _filterTransactions(
     List<Map<String, dynamic>> transactions,
   ) {
+    final dateRange = _activeDateRange();
+
+    if (dateRange == null) {
+      return [];
+    }
+
     final filtered = transactions.where((transaction) {
       final date = transaction['date'] as DateTime;
 
-      final matchesMonth =
-          date.year == _selectedMonth.year &&
-          date.month == _selectedMonth.month;
+      final matchesDate = dateRange.contains(date);
 
       final matchesType =
           _selectedType == 'All' ||
@@ -113,7 +117,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           _selectedCategory == 'All' ||
           transaction['category'] == _selectedCategory;
 
-      return matchesMonth && matchesType && matchesCategory;
+      return matchesDate && matchesType && matchesCategory;
     }).toList();
 
     filtered.sort(
@@ -122,6 +126,66 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     );
 
     return filtered;
+  }
+
+  double _calculateIncome(List<Map<String, dynamic>> transactions) {
+    return transactions
+        .where((transaction) => transaction['type'] == 'income')
+        .fold<double>(
+          0,
+          (total, transaction) => total + (transaction['amount'] as double),
+        );
+  }
+
+  double _calculateExpenses(List<Map<String, dynamic>> transactions) {
+    return transactions
+        .where((transaction) => transaction['type'] == 'expense')
+        .fold<double>(
+          0,
+          (total, transaction) => total + (transaction['amount'] as double),
+        );
+  }
+
+  Future<void> _handlePeriodChanged(DatePeriod period) async {
+    if (period == DatePeriod.custom) {
+      await _pickCustomRange();
+      return;
+    }
+
+    setState(() {
+      _selectedPeriod = period;
+      _customStartDate = null;
+      _customEndDate = null;
+    });
+  }
+
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
+
+    final DateTime initialStart =
+        _customStartDate ?? now.subtract(const Duration(days: 7));
+
+    final DateTime initialEnd = _customEndDate ?? now;
+
+    final pickedRange = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      initialDateRange: DateTimeRange(start: initialStart, end: initialEnd),
+      helpText: 'Select Transaction Period',
+      confirmText: 'Apply',
+      cancelText: 'Cancel',
+    );
+
+    if (pickedRange == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _selectedPeriod = DatePeriod.custom;
+      _customStartDate = pickedRange.start;
+      _customEndDate = pickedRange.end;
+    });
   }
 
   Future<void> _deleteTransaction(Map<String, dynamic> transaction) async {
@@ -408,12 +472,95 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         ..showSnackBar(
           SnackBar(
             content: Text(
-              '$importedCount transaction${importedCount == 1 ? '' : 's'} imported successfully',
+              '$importedCount transaction'
+              '${importedCount == 1 ? '' : 's'} '
+              'imported successfully',
             ),
             backgroundColor: Colors.green,
           ),
         );
     }
+  }
+
+  Widget _buildSummaryCard({
+    required double income,
+    required double expenses,
+    required int transactionCount,
+  }) {
+    final double balance = income - expenses;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.analytics_outlined, color: Color(0xFF0E9F99)),
+
+              const SizedBox(width: 8),
+
+              Expanded(
+                child: Text(
+                  _currentPeriodLabel(),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              ),
+
+              Text(
+                '$transactionCount transaction'
+                '${transactionCount == 1 ? '' : 's'}',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
+              Expanded(
+                child: _SummaryValue(
+                  label: 'Income',
+                  value: income,
+                  color: Colors.green,
+                ),
+              ),
+
+              Container(height: 46, width: 1, color: const Color(0xFFE2E8F0)),
+
+              Expanded(
+                child: _SummaryValue(
+                  label: 'Expenses',
+                  value: expenses,
+                  color: Colors.red,
+                ),
+              ),
+
+              Container(height: 46, width: 1, color: const Color(0xFFE2E8F0)),
+
+              Expanded(
+                child: _SummaryValue(
+                  label: 'Net',
+                  value: balance,
+                  color: balance >= 0 ? const Color(0xFF0E9F99) : Colors.red,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -466,346 +613,443 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
           final filteredTransactions = _filterTransactions(transactions);
 
+          final double filteredIncome = _calculateIncome(filteredTransactions);
+
+          final double filteredExpenses = _calculateExpenses(
+            filteredTransactions,
+          );
+
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 900),
               child: Column(
                 children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    color: Colors.white,
-                    child: Column(
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.all(16),
                       children: [
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: [
-                            SizedBox(
-                              width: 210,
-                              child: DropdownButtonFormField<DateTime>(
-                                initialValue: _selectedMonth,
-                                decoration: const InputDecoration(
-                                  labelText: 'Month',
-                                  prefixIcon: Icon(Icons.calendar_month),
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: _availableMonths.map((month) {
-                                  return DropdownMenuItem<DateTime>(
-                                    value: month,
-                                    child: Text(_monthLabel(month)),
-                                  );
-                                }).toList(),
-                                onChanged: (month) {
-                                  if (month != null) {
-                                    setState(() {
-                                      _selectedMonth = month;
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-
-                            SizedBox(
-                              width: 180,
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _selectedType,
-                                decoration: const InputDecoration(
-                                  labelText: 'Type',
-                                  prefixIcon: Icon(Icons.swap_vert),
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: ['All', 'Income', 'Expense'].map((type) {
-                                  return DropdownMenuItem<String>(
-                                    value: type,
-                                    child: Text(type),
-                                  );
-                                }).toList(),
-                                onChanged: (type) {
-                                  if (type != null) {
-                                    setState(() {
-                                      _selectedType = type;
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-
-                            SizedBox(
-                              width: 210,
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _selectedCategory,
-                                decoration: const InputDecoration(
-                                  labelText: 'Category',
-                                  prefixIcon: Icon(Icons.category_outlined),
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: categories.map((category) {
-                                  return DropdownMenuItem<String>(
-                                    value: category,
-                                    child: Text(category),
-                                  );
-                                }).toList(),
-                                onChanged: (category) {
-                                  if (category != null) {
-                                    setState(() {
-                                      _selectedCategory = category;
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
+                        PeriodSelector(
+                          selectedPeriod: _selectedPeriod,
+                          onPeriodChanged: _handlePeriodChanged,
+                          customStartDate: _customStartDate,
+                          customEndDate: _customEndDate,
+                          onCustomRangeRequested: _pickCustomRange,
                         ),
 
                         const SizedBox(height: 14),
 
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: _openAddIncome,
-                                icon: const Icon(Icons.add),
-                                label: const Text('Add Income'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green,
-                                  foregroundColor: Colors.white,
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(width: 12),
-
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: _openAddExpense,
-                                icon: const Icon(Icons.remove),
-                                label: const Text('Add Expense'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.redAccent,
-                                  foregroundColor: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
+                        _buildSummaryCard(
+                          income: filteredIncome,
+                          expenses: filteredExpenses,
+                          transactionCount: filteredTransactions.length,
                         ),
 
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 14),
 
-                        SizedBox(
+                        Container(
                           width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: _openCsvImport,
-                            icon: const Icon(Icons.upload_file_outlined),
-                            label: const Text('Import Bank Transactions'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF0E9F99),
-                              side: const BorderSide(color: Color(0xFF14B8B1)),
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                            ),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
+                            children: [
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 12,
+                                children: [
+                                  SizedBox(
+                                    width: 220,
+                                    child: DropdownButtonFormField<String>(
+                                      initialValue: _selectedType,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Transaction Type',
+                                        prefixIcon: Icon(Icons.swap_vert),
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      items: ['All', 'Income', 'Expense'].map((
+                                        type,
+                                      ) {
+                                        return DropdownMenuItem<String>(
+                                          value: type,
+                                          child: Text(type),
+                                        );
+                                      }).toList(),
+                                      onChanged: (type) {
+                                        if (type != null) {
+                                          setState(() {
+                                            _selectedType = type;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+
+                                  SizedBox(
+                                    width: 220,
+                                    child: DropdownButtonFormField<String>(
+                                      initialValue: _selectedCategory,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Category',
+                                        prefixIcon: Icon(
+                                          Icons.category_outlined,
+                                        ),
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      items: categories.map((category) {
+                                        return DropdownMenuItem<String>(
+                                          value: category,
+                                          child: Text(category),
+                                        );
+                                      }).toList(),
+                                      onChanged: (category) {
+                                        if (category != null) {
+                                          setState(() {
+                                            _selectedCategory = category;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 14),
+
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: _openAddIncome,
+                                      icon: const Icon(Icons.add),
+                                      label: const Text('Add Income'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(width: 12),
+
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: _openAddExpense,
+                                      icon: const Icon(Icons.remove),
+                                      label: const Text('Add Expense'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.redAccent,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: _openCsvImport,
+                                  icon: const Icon(Icons.upload_file_outlined),
+                                  label: const Text('Import Bank Transactions'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF0E9F99),
+                                    side: const BorderSide(
+                                      color: Color(0xFF14B8B1),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
 
-                  Expanded(
-                    child: filteredTransactions.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'No transactions found for this month.',
-                              style: TextStyle(
-                                fontSize: 17,
-                                color: Color(0xFF667085),
+                        const SizedBox(height: 16),
+
+                        const Text(
+                          'Transactions',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF111827),
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        if (filteredTransactions.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 40,
+                              horizontal: 20,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(0xFFE2E8F0),
                               ),
                             ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: filteredTransactions.length,
-                            itemBuilder: (context, index) {
-                              final transaction = filteredTransactions[index];
-
-                              final bool isIncome =
-                                  transaction['type'] == 'income';
-
-                              final double amount =
-                                  transaction['amount'] as double;
-
-                              final DateTime date =
-                                  transaction['date'] as DateTime;
-
-                              final String notes = transaction['notes']
-                                  .toString();
-
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                elevation: 1,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                            child: Column(
+                              children: [
+                                const Icon(
+                                  Icons.receipt_long_outlined,
+                                  size: 42,
+                                  color: Color(0xFF94A3B8),
                                 ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 14,
+
+                                const SizedBox(height: 10),
+
+                                const Text(
+                                  'No transactions found',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF475569),
                                   ),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 22,
-                                        backgroundColor: isIncome
-                                            ? Colors.green.shade50
-                                            : Colors.red.shade50,
-                                        child: Icon(
-                                          isIncome
-                                              ? Icons.arrow_downward
-                                              : Icons.arrow_upward,
-                                          color: isIncome
-                                              ? Colors.green
-                                              : Colors.red,
-                                        ),
+                                ),
+
+                                const SizedBox(height: 5),
+
+                                Text(
+                                  'There are no transactions matching '
+                                  '${_currentPeriodLabel()} and your current filters.',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          ...filteredTransactions.map((transaction) {
+                            final bool isIncome =
+                                transaction['type'] == 'income';
+
+                            final double amount =
+                                transaction['amount'] as double;
+
+                            final DateTime date =
+                                transaction['date'] as DateTime;
+
+                            final String notes = transaction['notes']
+                                .toString();
+
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              elevation: 1,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 14,
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 22,
+                                      backgroundColor: isIncome
+                                          ? Colors.green.shade50
+                                          : Colors.red.shade50,
+                                      child: Icon(
+                                        isIncome
+                                            ? Icons.arrow_downward
+                                            : Icons.arrow_upward,
+                                        color: isIncome
+                                            ? Colors.green
+                                            : Colors.red,
                                       ),
+                                    ),
 
-                                      const SizedBox(width: 12),
+                                    const SizedBox(width: 12),
 
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              transaction['category']
-                                                  .toString(),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-
-                                            const SizedBox(height: 4),
-
-                                            Text(
-                                              notes.isEmpty
-                                                  ? 'No notes'
-                                                  : notes,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                color: Color(0xFF667085),
-                                              ),
-                                            ),
-
-                                            const SizedBox(height: 4),
-
-                                            Text(
-                                              _dateLabel(date),
-                                              maxLines: 1,
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: Color(0xFF98A2B3),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-
-                                      const SizedBox(width: 8),
-
-                                      Column(
+                                    Expanded(
+                                      child: Column(
                                         crossAxisAlignment:
-                                            CrossAxisAlignment.end,
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            '${isIncome ? '+' : '-'}'
-                                            '\$${amount.toStringAsFixed(2)}',
+                                            transaction['category'].toString(),
                                             maxLines: 1,
-                                            style: TextStyle(
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.bold,
-                                              color: isIncome
-                                                  ? Colors.green
-                                                  : Colors.red,
                                             ),
                                           ),
 
-                                          const SizedBox(height: 2),
+                                          const SizedBox(height: 4),
 
-                                          SizedBox(
-                                            width: 36,
-                                            height: 32,
-                                            child: PopupMenuButton<String>(
-                                              padding: EdgeInsets.zero,
-                                              icon: const Icon(
-                                                Icons.more_vert,
-                                                size: 22,
-                                                color: Color(0xFF667085),
-                                              ),
-                                              onSelected: (action) {
-                                                if (action == 'edit') {
-                                                  _editTransaction(transaction);
-                                                } else if (action == 'delete') {
-                                                  _deleteTransaction(
-                                                    transaction,
-                                                  );
-                                                }
-                                              },
-                                              itemBuilder: (context) => const [
-                                                PopupMenuItem(
-                                                  value: 'edit',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        Icons.edit_outlined,
-                                                        size: 20,
-                                                      ),
-                                                      SizedBox(width: 10),
-                                                      Text('Edit'),
-                                                    ],
-                                                  ),
-                                                ),
-                                                PopupMenuItem(
-                                                  value: 'delete',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        Icons.delete_outline,
-                                                        size: 20,
-                                                        color: Colors.red,
-                                                      ),
-                                                      SizedBox(width: 10),
-                                                      Text(
-                                                        'Delete',
-                                                        style: TextStyle(
-                                                          color: Colors.red,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
+                                          Text(
+                                            notes.isEmpty ? 'No notes' : notes,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              color: Color(0xFF667085),
+                                            ),
+                                          ),
+
+                                          const SizedBox(height: 4),
+
+                                          Text(
+                                            _dateLabel(date),
+                                            maxLines: 1,
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              color: Color(0xFF98A2B3),
                                             ),
                                           ),
                                         ],
                                       ),
-                                    ],
-                                  ),
+                                    ),
+
+                                    const SizedBox(width: 8),
+
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          '${isIncome ? '+' : '-'}'
+                                          '\$${amount.toStringAsFixed(2)}',
+                                          maxLines: 1,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: isIncome
+                                                ? Colors.green
+                                                : Colors.red,
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 2),
+
+                                        SizedBox(
+                                          width: 36,
+                                          height: 32,
+                                          child: PopupMenuButton<String>(
+                                            padding: EdgeInsets.zero,
+                                            icon: const Icon(
+                                              Icons.more_vert,
+                                              size: 22,
+                                              color: Color(0xFF667085),
+                                            ),
+                                            onSelected: (action) {
+                                              if (action == 'edit') {
+                                                _editTransaction(transaction);
+                                              } else if (action == 'delete') {
+                                                _deleteTransaction(transaction);
+                                              }
+                                            },
+                                            itemBuilder: (context) => const [
+                                              PopupMenuItem(
+                                                value: 'edit',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.edit_outlined,
+                                                      size: 20,
+                                                    ),
+                                                    SizedBox(width: 10),
+                                                    Text('Edit'),
+                                                  ],
+                                                ),
+                                              ),
+                                              PopupMenuItem(
+                                                value: 'delete',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.delete_outline,
+                                                      size: 20,
+                                                      color: Colors.red,
+                                                    ),
+                                                    SizedBox(width: 10),
+                                                    Text(
+                                                      'Delete',
+                                                      style: TextStyle(
+                                                        color: Colors.red,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
-                              );
-                            },
-                          ),
+                              ),
+                            );
+                          }),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _SummaryValue extends StatelessWidget {
+  const _SummaryValue({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+          ),
+
+          const SizedBox(height: 5),
+
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '\$${value.toStringAsFixed(2)}',
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
