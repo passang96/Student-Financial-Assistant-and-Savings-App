@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../services/firestore_service.dart';
 import 'add_expense_screen.dart';
 import 'add_income_screen.dart';
+import 'csv_import_screen.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   const TransactionHistoryScreen({super.key});
@@ -391,6 +392,30 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     );
   }
 
+  Future<void> _openCsvImport() async {
+    final importedCount = await Navigator.push<int>(
+      context,
+      MaterialPageRoute(builder: (_) => const CsvImportScreen()),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (importedCount != null && importedCount > 0) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              '$importedCount transaction${importedCount == 1 ? '' : 's'} imported successfully',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -399,6 +424,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         title: const Text('Transaction History'),
         backgroundColor: const Color(0xFF14B8B1),
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            tooltip: 'Import Bank Transactions',
+            onPressed: _openCsvImport,
+            icon: const Icon(Icons.upload_file_outlined),
+          ),
+        ],
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _firestoreService.getTransactions(),
@@ -408,7 +440,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
-                  'Could not load transactions.\n\n${snapshot.error}',
+                  'Could not load transactions.\n\n'
+                  '${snapshot.error}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.red),
                 ),
@@ -472,6 +505,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                 },
                               ),
                             ),
+
                             SizedBox(
                               width: 180,
                               child: DropdownButtonFormField<String>(
@@ -496,6 +530,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                 },
                               ),
                             ),
+
                             SizedBox(
                               width: 210,
                               child: DropdownButtonFormField<String>(
@@ -554,6 +589,22 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                             ),
                           ],
                         ),
+
+                        const SizedBox(height: 12),
+
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _openCsvImport,
+                            icon: const Icon(Icons.upload_file_outlined),
+                            label: const Text('Import Bank Transactions'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF0E9F99),
+                              side: const BorderSide(color: Color(0xFF14B8B1)),
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -589,42 +640,92 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 12),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.all(14),
-                                  leading: CircleAvatar(
-                                    backgroundColor: isIncome
-                                        ? Colors.green.shade50
-                                        : Colors.red.shade50,
-                                    child: Icon(
-                                      isIncome
-                                          ? Icons.arrow_downward
-                                          : Icons.arrow_upward,
-                                      color: isIncome
-                                          ? Colors.green
-                                          : Colors.red,
-                                    ),
+                                elevation: 1,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 14,
                                   ),
-                                  title: Text(
-                                    transaction['category'].toString(),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    '${notes.isEmpty ? 'No notes' : notes}\n'
-                                    '${_dateLabel(date)}',
-                                  ),
-                                  isThreeLine: true,
-                                  trailing: SizedBox(
-                                    width: 170,
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        Flexible(
-                                          child: Text(
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 22,
+                                        backgroundColor: isIncome
+                                            ? Colors.green.shade50
+                                            : Colors.red.shade50,
+                                        child: Icon(
+                                          isIncome
+                                              ? Icons.arrow_downward
+                                              : Icons.arrow_upward,
+                                          color: isIncome
+                                              ? Colors.green
+                                              : Colors.red,
+                                        ),
+                                      ),
+
+                                      const SizedBox(width: 12),
+
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              transaction['category']
+                                                  .toString(),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+
+                                            const SizedBox(height: 4),
+
+                                            Text(
+                                              notes.isEmpty
+                                                  ? 'No notes'
+                                                  : notes,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                color: Color(0xFF667085),
+                                              ),
+                                            ),
+
+                                            const SizedBox(height: 4),
+
+                                            Text(
+                                              _dateLabel(date),
+                                              maxLines: 1,
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFF98A2B3),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+
+                                      const SizedBox(width: 8),
+
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Text(
                                             '${isIncome ? '+' : '-'}'
                                             '\$${amount.toStringAsFixed(2)}',
-                                            overflow: TextOverflow.ellipsis,
+                                            maxLines: 1,
                                             style: TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.bold,
@@ -633,28 +734,67 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                                   : Colors.red,
                                             ),
                                           ),
-                                        ),
-                                        PopupMenuButton<String>(
-                                          onSelected: (action) {
-                                            if (action == 'edit') {
-                                              _editTransaction(transaction);
-                                            } else if (action == 'delete') {
-                                              _deleteTransaction(transaction);
-                                            }
-                                          },
-                                          itemBuilder: (context) => const [
-                                            PopupMenuItem(
-                                              value: 'edit',
-                                              child: Text('Edit'),
+
+                                          const SizedBox(height: 2),
+
+                                          SizedBox(
+                                            width: 36,
+                                            height: 32,
+                                            child: PopupMenuButton<String>(
+                                              padding: EdgeInsets.zero,
+                                              icon: const Icon(
+                                                Icons.more_vert,
+                                                size: 22,
+                                                color: Color(0xFF667085),
+                                              ),
+                                              onSelected: (action) {
+                                                if (action == 'edit') {
+                                                  _editTransaction(transaction);
+                                                } else if (action == 'delete') {
+                                                  _deleteTransaction(
+                                                    transaction,
+                                                  );
+                                                }
+                                              },
+                                              itemBuilder: (context) => const [
+                                                PopupMenuItem(
+                                                  value: 'edit',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.edit_outlined,
+                                                        size: 20,
+                                                      ),
+                                                      SizedBox(width: 10),
+                                                      Text('Edit'),
+                                                    ],
+                                                  ),
+                                                ),
+                                                PopupMenuItem(
+                                                  value: 'delete',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.delete_outline,
+                                                        size: 20,
+                                                        color: Colors.red,
+                                                      ),
+                                                      SizedBox(width: 10),
+                                                      Text(
+                                                        'Delete',
+                                                        style: TextStyle(
+                                                          color: Colors.red,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                            PopupMenuItem(
-                                              value: 'delete',
-                                              child: Text('Delete'),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
                                 ),
                               );
