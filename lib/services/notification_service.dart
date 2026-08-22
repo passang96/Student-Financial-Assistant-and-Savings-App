@@ -25,6 +25,7 @@ class NotificationService {
       throw Exception('User not logged in');
     }
 
+    // Prevent the same alert from being created repeatedly.
     if (uniqueKey != null) {
       final existing = await notifications
           .where('uniqueKey', isEqualTo: uniqueKey)
@@ -131,27 +132,33 @@ class NotificationService {
     final now = DateTime.now();
 
     final String monthKey =
-        '${now.year}-${now.month.toString().padLeft(2, '0')}';
+        '${now.year}-'
+        '${now.month.toString().padLeft(2, '0')}';
 
+    // Approaching budget limit.
     if (percentage >= 80 && percentage < 100) {
       final String uniqueKey = 'budget_warning_${budgetId}_$monthKey';
 
       await createNotification(
         title: 'Budget Warning',
         message:
-            'You have used ${percentage.toStringAsFixed(0)}% of your $category budget.',
+            'You have used ${percentage.toStringAsFixed(0)}% '
+            'of your $category budget.',
         type: 'budget_warning',
         referenceId: budgetId,
         uniqueKey: uniqueKey,
       );
     }
 
+    // Budget exceeded.
     if (spentAmount >= budgetAmount) {
       final String uniqueKey = 'budget_exceeded_${budgetId}_$monthKey';
 
       await createNotification(
         title: 'Budget Exceeded',
-        message: 'You have reached or exceeded your $category budget.',
+        message:
+            'You have reached or exceeded your '
+            '$category budget.',
         type: 'budget_exceeded',
         referenceId: budgetId,
         uniqueKey: uniqueKey,
@@ -179,10 +186,13 @@ class NotificationService {
       progress = 100;
     }
 
+    // Goal completed.
     if (progress >= 100) {
       await createNotification(
         title: 'Goal Achieved 🎉',
-        message: 'Congratulations! You achieved your $goalName savings goal.',
+        message:
+            'Congratulations! You achieved your '
+            '$goalName savings goal.',
         type: 'goal_achieved',
         referenceId: goalId,
         uniqueKey: 'goal_achieved_$goalId',
@@ -191,10 +201,13 @@ class NotificationService {
       return;
     }
 
+    // 75% milestone.
     if (progress >= 75) {
       await createNotification(
         title: 'Goal Progress',
-        message: 'You have reached 75% of your $goalName savings goal.',
+        message:
+            'You have reached 75% of your '
+            '$goalName savings goal.',
         type: 'goal_progress',
         referenceId: goalId,
         uniqueKey: 'goal_progress_75_$goalId',
@@ -203,10 +216,13 @@ class NotificationService {
       return;
     }
 
+    // 50% milestone.
     if (progress >= 50) {
       await createNotification(
         title: 'Goal Progress',
-        message: 'You have reached 50% of your $goalName savings goal.',
+        message:
+            'You have reached 50% of your '
+            '$goalName savings goal.',
         type: 'goal_progress',
         referenceId: goalId,
         uniqueKey: 'goal_progress_50_$goalId',
@@ -215,10 +231,13 @@ class NotificationService {
       return;
     }
 
+    // 25% milestone.
     if (progress >= 25) {
       await createNotification(
         title: 'Goal Progress',
-        message: 'You have reached 25% of your $goalName savings goal.',
+        message:
+            'You have reached 25% of your '
+            '$goalName savings goal.',
         type: 'goal_progress',
         referenceId: goalId,
         uniqueKey: 'goal_progress_25_$goalId',

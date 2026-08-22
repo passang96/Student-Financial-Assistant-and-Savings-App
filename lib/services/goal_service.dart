@@ -1,8 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'notification_service.dart';
+
 class GoalService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final NotificationService _notificationService = NotificationService();
 
   String? get uid => FirebaseAuth.instance.currentUser?.uid;
 
@@ -118,6 +121,13 @@ class GoalService {
       'achieved': achieved,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    await _notificationService.checkGoalProgress(
+      goalId: goalId,
+      goalName: name.trim(),
+      currentAmount: currentAmount,
+      targetAmount: targetAmount,
+    );
   }
 
   Future<void> deleteGoal(String goalId) async {
@@ -142,6 +152,10 @@ class GoalService {
 
     final goalRef = goals.doc(goalId);
 
+    String goalName = 'Savings Goal';
+    double newAmount = 0;
+    double targetAmount = 0;
+
     await _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(goalRef);
 
@@ -155,17 +169,18 @@ class GoalService {
         throw Exception('Goal data not found');
       }
 
+      goalName = data['name']?.toString().trim() ?? 'Savings Goal';
+
       final double currentAmount =
           (data['currentAmount'] as num?)?.toDouble() ?? 0.0;
 
-      final double targetAmount =
-          (data['targetAmount'] as num?)?.toDouble() ?? 0.0;
+      targetAmount = (data['targetAmount'] as num?)?.toDouble() ?? 0.0;
 
       if (targetAmount <= 0) {
         throw Exception('Invalid target amount');
       }
 
-      final double newAmount = currentAmount + contribution;
+      newAmount = currentAmount + contribution;
 
       double progress = (newAmount / targetAmount) * 100;
 
@@ -194,6 +209,13 @@ class GoalService {
       'amount': contribution,
       'date': FieldValue.serverTimestamp(),
     });
+
+    await _notificationService.checkGoalProgress(
+      goalId: goalId,
+      goalName: goalName,
+      currentAmount: newAmount,
+      targetAmount: targetAmount,
+    );
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> getContributions(String goalId) {

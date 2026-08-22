@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/imported_transaction.dart';
+import 'budget_service.dart';
 
 abstract interface class ImportedTransactionWriter {
   Future<void> importTransactions(List<ImportedTransaction> transactions);
@@ -11,13 +12,16 @@ class TransactionImportService implements ImportedTransactionWriter {
   TransactionImportService({
     FirebaseFirestore? firestore,
     FirebaseAuth? firebaseAuth,
+    BudgetService? budgetService,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
+       _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
+       _budgetService = budgetService ?? BudgetService();
 
   static const int _writesPerBatch = 450;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _firebaseAuth;
+  final BudgetService _budgetService;
 
   @override
   Future<void> importTransactions(
@@ -49,8 +53,8 @@ class TransactionImportService implements ImportedTransactionWriter {
         batch.set(collection.doc(), {
           'description': transaction.description,
 
-          // The integrated transaction screens use `notes`
-          // for the display text.
+          // Transaction History and Dashboard use
+          // `notes` for the visible transaction description.
           'notes': transaction.description,
 
           'amount': transaction.amount,
@@ -58,6 +62,8 @@ class TransactionImportService implements ImportedTransactionWriter {
           'category': transaction.category,
           'date': Timestamp.fromDate(transaction.date),
 
+          // Marks the transaction as having been
+          // imported from an external CSV file.
           'source': 'csv',
           'sourceRow': transaction.sourceRow,
 
@@ -67,6 +73,21 @@ class TransactionImportService implements ImportedTransactionWriter {
       }
 
       await batch.commit();
+    }
+
+    // CSV imports write directly to Firestore instead of
+    // FirestoreService.addTransaction(), so refresh budget
+    // alerts once after the complete import has finished.
+    //
+    // We do this once after all batches rather than after
+    // every transaction to avoid unnecessary Firestore reads
+    // and duplicate budget checks.
+    try {
+      await _budgetService.checkCurrentMonthBudgetAlerts();
+    } catch (_) {
+      // The imported transactions have already been saved
+      // successfully. A temporary notification failure should
+      // not make the whole CSV import appear unsuccessful.
     }
   }
 }

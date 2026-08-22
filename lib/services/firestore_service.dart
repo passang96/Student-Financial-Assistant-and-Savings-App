@@ -1,8 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'budget_service.dart';
+
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final BudgetService _budgetService = BudgetService();
 
   String? get uid => FirebaseAuth.instance.currentUser?.uid;
 
@@ -34,6 +37,8 @@ class FirestoreService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    await _refreshBudgetAlertsSafely();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> getTransactions() {
@@ -60,6 +65,8 @@ class FirestoreService {
       'notes': notes.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    await _refreshBudgetAlertsSafely();
   }
 
   Future<void> deleteTransaction(String transactionId) async {
@@ -68,6 +75,8 @@ class FirestoreService {
     }
 
     await transactions.doc(transactionId).delete();
+
+    await _refreshBudgetAlertsSafely();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> getCurrentMonthTransactions() {
@@ -117,5 +126,14 @@ class FirestoreService {
         .where('category', isEqualTo: category)
         .orderBy('date', descending: true)
         .snapshots();
+  }
+
+  Future<void> _refreshBudgetAlertsSafely() async {
+    try {
+      await _budgetService.checkCurrentMonthBudgetAlerts();
+    } catch (_) {
+      // A transaction should remain successfully saved even
+      // if a budget notification check temporarily fails.
+    }
   }
 }
