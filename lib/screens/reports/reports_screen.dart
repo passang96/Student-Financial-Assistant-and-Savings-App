@@ -1,6 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+import '../../services/firestore_service.dart';
+import '../../services/goal_service.dart';
+import '../../utils/date_period.dart';
+import '../../widgets/period_selector.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -10,133 +14,131 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirestoreService _firestoreService = FirestoreService();
+  final GoalService _goalService = GoalService();
 
-  late DateTime _selectedMonth;
+  DatePeriod _selectedPeriod = DatePeriod.thisMonth;
 
-  @override
-  void initState() {
-    super.initState();
+  DateTime? _customStartDate;
+  DateTime? _customEndDate;
 
-    final now = DateTime.now();
-    _selectedMonth = DateTime(now.year, now.month);
+  String _money(double amount) {
+    return '\$${amount.toStringAsFixed(2)}';
   }
 
-  String get _uid {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      throw Exception('User not logged in');
-    }
-
-    return user.uid;
+  String _dateLabel(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
   }
 
-  String _monthName(int month) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-
-    return months[month - 1];
-  }
-
-  String _monthLabel(DateTime date) {
-    return '${_monthName(date.month)} ${date.year}';
-  }
-
-  List<DateTime> _availableMonths() {
-    final now = DateTime.now();
-
-    return List.generate(12, (index) => DateTime(now.year, now.month - index));
-  }
-
-  DateTime _previousMonth(DateTime month) {
-    return DateTime(month.year, month.month - 1);
-  }
-
-  Stream<QuerySnapshot<Map<String, dynamic>>> _transactionsForMonth(
-    DateTime month,
-  ) {
-    final start = DateTime(month.year, month.month, 1);
-
-    final end = DateTime(month.year, month.month + 1, 1);
-
-    return _firestore
-        .collection('users')
-        .doc(_uid)
-        .collection('transactions')
-        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('date', isLessThan: Timestamp.fromDate(end))
-        .orderBy('date', descending: true)
-        .snapshots();
-  }
-
-  Stream<DocumentSnapshot<Map<String, dynamic>>> _budgetForMonth(
-    DateTime month,
-  ) {
-    final monthKey = '${month.year}-${month.month.toString().padLeft(2, '0')}';
-
-    return _firestore
-        .collection('users')
-        .doc(_uid)
-        .collection('budgets')
-        .doc(monthKey)
-        .snapshots();
-  }
-
-  Map<String, dynamic> _calculateReport(
-    QuerySnapshot<Map<String, dynamic>> snapshot,
-  ) {
-    double income = 0;
-    double expenses = 0;
-
-    final Map<String, double> categorySpending = {};
-
-    for (final document in snapshot.docs) {
-      final data = document.data();
-
-      final String type = data['type']?.toString().toLowerCase() ?? '';
-
-      final double amount = (data['amount'] as num?)?.toDouble() ?? 0;
-
-      if (type == 'income') {
-        income += amount;
+  DateRange? _activeDateRange() {
+    if (_selectedPeriod == DatePeriod.custom) {
+      if (_customStartDate == null || _customEndDate == null) {
+        return null;
       }
 
-      if (type == 'expense') {
-        expenses += amount;
-
-        final String category =
-            data['category']?.toString().trim().isNotEmpty == true
-            ? data['category'].toString().trim()
-            : 'Other';
-
-        categorySpending[category] = (categorySpending[category] ?? 0) + amount;
-      }
+      return resolveDateRange(
+        DatePeriod.custom,
+        customStart: _customStartDate,
+        customEnd: _customEndDate,
+      );
     }
 
-    final double savings = income - expenses;
+    return resolveDateRange(_selectedPeriod);
+  }
 
-    final double savingsRate = income > 0 ? (savings / income) * 100 : 0;
+  DateRange? _previousDateRange() {
+    final current = _activeDateRange();
 
-    return {
-      'income': income,
-      'expenses': expenses,
-      'savings': savings,
-      'savingsRate': savingsRate,
-      'categories': categorySpending,
-    };
+    if (current == null) {
+      return null;
+    }
+
+    final currentStart = DateTime(
+      current.start.year,
+      current.start.month,
+      current.start.day,
+    );
+
+    final currentEnd = DateTime(
+      current.end.year,
+      current.end.month,
+      current.end.day,
+    );
+
+    final days = currentEnd.difference(currentStart).inDays + 1;
+
+    final previousEnd = currentStart.subtract(const Duration(days: 1));
+
+    final previousStart = previousEnd.subtract(Duration(days: days - 1));
+
+    return DateRange(
+      previousStart,
+      DateTime(
+        previousEnd.year,
+        previousEnd.month,
+        previousEnd.day,
+        23,
+        59,
+        59,
+        999,
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _convertTransactions(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    return docs.map((doc) {
+      final data = doc.data();
+
+      final rawDate = data['date'];
+
+      final date = rawDate is Timestamp ? rawDate.toDate() : DateTime.now();
+
+      return {
+        'id': doc.id,
+        'type': data['type']?.toString() ?? '',
+        'category': data['category']?.toString() ?? 'Other',
+        'amount': (data['amount'] as num?)?.toDouble() ?? 0.0,
+        'date': date,
+        'notes': data['notes']?.toString() ?? '',
+      };
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> _transactionsInRange(
+    List<Map<String, dynamic>> transactions,
+    DateRange? range,
+  ) {
+    if (range == null) {
+      return [];
+    }
+
+    return transactions.where((transaction) {
+      final date = transaction['date'] as DateTime;
+
+      return range.contains(date);
+    }).toList();
+  }
+
+  double _income(List<Map<String, dynamic>> transactions) {
+    return transactions
+        .where((transaction) => transaction['type'] == 'income')
+        .fold<double>(
+          0,
+          (total, transaction) => total + (transaction['amount'] as double),
+        );
+  }
+
+  double _expenses(List<Map<String, dynamic>> transactions) {
+    return transactions
+        .where((transaction) => transaction['type'] == 'expense')
+        .fold<double>(
+          0,
+          (total, transaction) => total + (transaction['amount'] as double),
+        );
   }
 
   double _percentageChange(double current, double previous) {
@@ -151,332 +153,331 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return ((current - previous) / previous) * 100;
   }
 
-  Map<String, double> _readCategoryBudgets(
-    DocumentSnapshot<Map<String, dynamic>>? snapshot,
+  Map<String, double> _categoryExpenses(
+    List<Map<String, dynamic>> transactions,
   ) {
-    final Map<String, double> result = {};
+    final categories = <String, double>{};
 
-    final data = snapshot?.data();
+    for (final transaction in transactions) {
+      if (transaction['type'] != 'expense') {
+        continue;
+      }
 
-    if (data == null) {
-      return result;
+      final category = transaction['category']?.toString() ?? 'Other';
+
+      final amount = transaction['amount'] as double;
+
+      categories[category] = (categories[category] ?? 0) + amount;
     }
 
-    final raw = data['categoryBudgets'];
-
-    if (raw is Map) {
-      raw.forEach((key, value) {
-        if (value is num) {
-          result[key.toString()] = value.toDouble();
-        }
-      });
-    }
-
-    return result;
+    return categories;
   }
 
-  Color _categoryColor(String category) {
-    switch (category.toLowerCase()) {
-      case 'rent':
-        return Colors.blue;
-
-      case 'food':
-        return Colors.orange;
-
-      case 'transport':
-        return Colors.green;
-
-      case 'bills':
-        return Colors.purple;
-
-      case 'shopping':
-        return Colors.pink;
-
-      case 'education/study':
-        return Colors.indigo;
-
-      case 'entertainment':
-        return Colors.deepOrange;
-
-      case 'medical':
-      case 'health':
-        return Colors.red;
-
-      default:
-        return Colors.teal;
+  Future<void> _handlePeriodChanged(DatePeriod period) async {
+    if (period == DatePeriod.custom) {
+      await _pickCustomRange();
+      return;
     }
+
+    setState(() {
+      _selectedPeriod = period;
+      _customStartDate = null;
+      _customEndDate = null;
+    });
   }
 
-  double _categoryProgress(double spent, double limit, double totalExpenses) {
-    if (limit > 0) {
-      final value = spent / limit;
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
 
-      return value.clamp(0.0, 1.0);
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      initialDateRange: DateTimeRange(
+        start: _customStartDate ?? now.subtract(const Duration(days: 7)),
+        end: _customEndDate ?? now,
+      ),
+      helpText: 'Select Report Period',
+      confirmText: 'Apply',
+      cancelText: 'Cancel',
+    );
+
+    if (picked == null || !mounted) {
+      return;
     }
 
-    if (totalExpenses > 0) {
-      final value = spent / totalExpenses;
-
-      return value.clamp(0.0, 1.0);
-    }
-
-    return 0;
+    setState(() {
+      _selectedPeriod = DatePeriod.custom;
+      _customStartDate = picked.start;
+      _customEndDate = picked.end;
+    });
   }
 
-  String _money(double amount) {
-    return '\$${amount.toStringAsFixed(2)}';
+  String _periodTitle() {
+    if (_selectedPeriod == DatePeriod.custom &&
+        _customStartDate != null &&
+        _customEndDate != null) {
+      return '${_dateLabel(_customStartDate!)} - '
+          '${_dateLabel(_customEndDate!)}';
+    }
+
+    return _selectedPeriod.label;
   }
 
   @override
   Widget build(BuildContext context) {
-    final previousMonth = _previousMonth(_selectedMonth);
-
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _transactionsForMonth(_selectedMonth),
-      builder: (context, currentSnapshot) {
-        if (currentSnapshot.hasError) {
-          return _errorScreen('Could not load report', currentSnapshot.error);
+      stream: _firestoreService.getTransactions(),
+      builder: (context, transactionSnapshot) {
+        if (transactionSnapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Text(
+                'Could not load reports.\n\n'
+                '${transactionSnapshot.error}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.red),
+              ),
+            ),
+          );
         }
 
-        if (!currentSnapshot.hasData) {
-          return _loadingScreen();
+        if (!transactionSnapshot.hasData) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
-        final currentReport = _calculateReport(currentSnapshot.data!);
+        final allTransactions = _convertTransactions(
+          transactionSnapshot.data!.docs,
+        );
+
+        final currentTransactions = _transactionsInRange(
+          allTransactions,
+          _activeDateRange(),
+        );
+
+        final previousTransactions = _transactionsInRange(
+          allTransactions,
+          _previousDateRange(),
+        );
+
+        final currentIncome = _income(currentTransactions);
+
+        final currentExpenses = _expenses(currentTransactions);
+
+        final currentNet = currentIncome - currentExpenses;
+
+        final previousIncome = _income(previousTransactions);
+
+        final previousExpenses = _expenses(previousTransactions);
+
+        final previousNet = previousIncome - previousExpenses;
+
+        final categories = _categoryExpenses(currentTransactions);
+
+        final sortedCategories = categories.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
 
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: _transactionsForMonth(previousMonth),
-          builder: (context, previousSnapshot) {
-            if (previousSnapshot.hasError) {
-              return _errorScreen(
-                'Could not load previous month',
-                previousSnapshot.error,
+          stream: _goalService.getGoals(),
+          builder: (context, goalSnapshot) {
+            if (goalSnapshot.hasError) {
+              return Scaffold(
+                body: Center(
+                  child: Text(
+                    'Could not load savings data.\n\n'
+                    '${goalSnapshot.error}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
               );
             }
 
-            if (!previousSnapshot.hasData) {
-              return _loadingScreen();
+            double totalSavings = 0;
+            int savingsGoalCount = 0;
+
+            if (goalSnapshot.hasData) {
+              savingsGoalCount = goalSnapshot.data!.docs.length;
+
+              for (final goal in goalSnapshot.data!.docs) {
+                final data = goal.data();
+
+                totalSavings +=
+                    (data['currentAmount'] as num?)?.toDouble() ?? 0;
+              }
             }
 
-            final previousReport = _calculateReport(previousSnapshot.data!);
+            return Scaffold(
+              backgroundColor: const Color(0xFFF5F7FB),
+              appBar: AppBar(
+                title: const Text(
+                  'Financial Reports',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                centerTitle: true,
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF1D3557),
+                elevation: 0,
+              ),
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 900),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        PeriodSelector(
+                          selectedPeriod: _selectedPeriod,
+                          onPeriodChanged: _handlePeriodChanged,
+                          customStartDate: _customStartDate,
+                          customEndDate: _customEndDate,
+                          onCustomRangeRequested: _pickCustomRange,
+                        ),
 
-            return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: _budgetForMonth(_selectedMonth),
-              builder: (context, budgetSnapshot) {
-                final categoryBudgets = _readCategoryBudgets(
-                  budgetSnapshot.data,
-                );
+                        const SizedBox(height: 20),
 
-                return _buildReportScreen(
-                  currentReport: currentReport,
-                  previousReport: previousReport,
-                  categoryBudgets: categoryBudgets,
-                  previousMonth: previousMonth,
-                );
-              },
+                        Text(
+                          _periodTitle(),
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1D3557),
+                          ),
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        Text(
+                          '${currentTransactions.length} transaction'
+                          '${currentTransactions.length == 1 ? '' : 's'} analysed',
+                          style: const TextStyle(
+                            color: Color(0xFF64748B),
+                            fontSize: 12,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final bool wide = constraints.maxWidth >= 650;
+
+                            final width = wide
+                                ? (constraints.maxWidth - 12) / 2
+                                : constraints.maxWidth;
+
+                            return Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                SizedBox(
+                                  width: width,
+                                  child: _buildSummaryCard(
+                                    title: 'Income',
+                                    amount: currentIncome,
+                                    comparison: _percentageChange(
+                                      currentIncome,
+                                      previousIncome,
+                                    ),
+                                    icon: Icons.arrow_downward,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: width,
+                                  child: _buildSummaryCard(
+                                    title: 'Expenses',
+                                    amount: currentExpenses,
+                                    comparison: _percentageChange(
+                                      currentExpenses,
+                                      previousExpenses,
+                                    ),
+                                    icon: Icons.arrow_upward,
+                                    color: Colors.red,
+                                    lowerIsBetter: true,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: width,
+                                  child: _buildSummaryCard(
+                                    title: 'Net Cash Flow',
+                                    amount: currentNet,
+                                    comparison: _percentageChange(
+                                      currentNet,
+                                      previousNet,
+                                    ),
+                                    icon: Icons.account_balance_wallet_outlined,
+                                    color: const Color(0xFF0E9F99),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: width,
+                                  child: _buildSavingsCard(
+                                    savings: totalSavings,
+                                    goalCount: savingsGoalCount,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        _buildComparisonCard(
+                          currentIncome: currentIncome,
+                          previousIncome: previousIncome,
+                          currentExpenses: currentExpenses,
+                          previousExpenses: previousExpenses,
+                          currentNet: currentNet,
+                          previousNet: previousNet,
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        const Text(
+                          'Category Spending',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1D3557),
+                          ),
+                        ),
+
+                        const SizedBox(height: 6),
+
+                        const Text(
+                          'See where your money went during the selected period.',
+                          style: TextStyle(
+                            color: Color(0xFF64748B),
+                            fontSize: 12,
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        if (sortedCategories.isEmpty)
+                          _buildEmptyCategories()
+                        else
+                          ...sortedCategories.map(
+                            (entry) => _buildCategoryCard(
+                              category: entry.key,
+                              amount: entry.value,
+                              totalExpenses: currentExpenses,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             );
           },
         );
       },
-    );
-  }
-
-  Widget _buildReportScreen({
-    required Map<String, dynamic> currentReport,
-    required Map<String, dynamic> previousReport,
-    required Map<String, double> categoryBudgets,
-    required DateTime previousMonth,
-  }) {
-    final double income = currentReport['income'] as double;
-
-    final double expenses = currentReport['expenses'] as double;
-
-    final double savings = currentReport['savings'] as double;
-
-    final double savingsRate = currentReport['savingsRate'] as double;
-
-    final double previousIncome = previousReport['income'] as double;
-
-    final double previousExpenses = previousReport['expenses'] as double;
-
-    final double previousSavings = previousReport['savings'] as double;
-
-    final Map<String, double> categorySpending = Map<String, double>.from(
-      currentReport['categories'] as Map,
-    );
-
-    final incomeComparison = _percentageChange(income, previousIncome);
-
-    final expenseComparison = _percentageChange(expenses, previousExpenses);
-
-    final savingsComparison = _percentageChange(savings, previousSavings);
-
-    final double previousSavingsRate = previousIncome > 0
-        ? (previousSavings / previousIncome) * 100
-        : 0;
-
-    final savingsRateComparison = savingsRate - previousSavingsRate;
-
-    final sortedCategories = categorySpending.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
-      appBar: AppBar(
-        title: const Text(
-          'Financial Reports',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1D3557),
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildMonthSelector(),
-
-            const SizedBox(height: 20),
-
-            const Text(
-              'Monthly Summary',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1D3557),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSummaryCard(
-                    title: 'Income',
-                    amount: income,
-                    comparison: incomeComparison,
-                    icon: Icons.arrow_downward,
-                    color: Colors.green,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildSummaryCard(
-                    title: 'Expenses',
-                    amount: expenses,
-                    comparison: expenseComparison,
-                    icon: Icons.arrow_upward,
-                    color: Colors.red,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSummaryCard(
-                    title: 'Savings',
-                    amount: savings,
-                    comparison: savingsComparison,
-                    icon: Icons.savings_outlined,
-                    color: Colors.blue,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildSummaryCard(
-                    title: 'Savings Rate',
-                    amount: savingsRate,
-                    comparison: savingsRateComparison,
-                    icon: Icons.percent,
-                    color: Colors.purple,
-                    isPercentage: true,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            _buildMonthComparison(
-              currentIncome: income,
-              previousIncome: previousIncome,
-              currentExpenses: expenses,
-              previousExpenses: previousExpenses,
-              currentSavings: savings,
-              previousSavings: previousSavings,
-              previousMonth: previousMonth,
-            ),
-
-            const SizedBox(height: 24),
-
-            const Text(
-              'Category Spending',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1D3557),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            if (sortedCategories.isEmpty)
-              _buildNoCategoryData()
-            else
-              ...sortedCategories.map((entry) {
-                final limit = categoryBudgets[entry.key] ?? 0;
-
-                return _buildCategoryCard(
-                  name: entry.key,
-                  amount: entry.value,
-                  limit: limit,
-                  totalExpenses: expenses,
-                );
-              }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMonthSelector() {
-    final months = _availableMonths();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<DateTime>(
-          value: _selectedMonth,
-          isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down),
-          items: months.map((month) {
-            return DropdownMenuItem<DateTime>(
-              value: month,
-              child: Text(_monthLabel(month)),
-            );
-          }).toList(),
-          onChanged: (value) {
-            if (value != null) {
-              setState(() {
-                _selectedMonth = value;
-              });
-            }
-          },
-        ),
-      ),
     );
   }
 
@@ -486,18 +487,39 @@ class _ReportsScreenState extends State<ReportsScreen> {
     required double comparison,
     required IconData icon,
     required Color color,
-    bool isPercentage = false,
+    bool lowerIsBetter = false,
   }) {
-    final bool increased = comparison >= 0;
+    final increased = comparison > 0;
+
+    Color comparisonColor;
+
+    if (comparison == 0) {
+      comparisonColor = const Color(0xFF64748B);
+    } else if (lowerIsBetter) {
+      comparisonColor = increased ? Colors.red : Colors.green;
+    } else {
+      comparisonColor = increased ? Colors.green : Colors.red;
+    }
+
+    String comparisonText;
+
+    if (comparison == 0) {
+      comparisonText = 'No change vs previous period';
+    } else {
+      comparisonText =
+          '${comparison > 0 ? '+' : ''}'
+          '${comparison.toStringAsFixed(1)}% '
+          'vs previous period';
+    }
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.15),
+            color: Colors.grey.withValues(alpha: 0.12),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -506,30 +528,42 @@ class _ReportsScreenState extends State<ReportsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color),
+          ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
-          Text(title, style: const TextStyle(color: Colors.grey)),
+          Text(
+            title,
+            style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+          ),
 
           const SizedBox(height: 5),
 
           Text(
-            isPercentage ? '${amount.toStringAsFixed(1)}%' : _money(amount),
+            _money(amount),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
               color: Color(0xFF1D3557),
             ),
           ),
 
-          const SizedBox(height: 6),
+          const SizedBox(height: 7),
 
           Text(
-            '${increased ? '+' : ''}'
-            '${comparison.toStringAsFixed(1)}% vs previous',
+            comparisonText,
             style: TextStyle(
-              color: increased ? Colors.green : Colors.red,
+              color: comparisonColor,
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
@@ -539,14 +573,77 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _buildMonthComparison({
+  Widget _buildSavingsCard({required double savings, required int goalCount}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withValues(alpha: 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF2E8FF),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.savings_outlined, color: Color(0xFF7C3AED)),
+          ),
+
+          const SizedBox(height: 12),
+
+          const Text(
+            'Savings Goals',
+            style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+          ),
+
+          const SizedBox(height: 5),
+
+          Text(
+            _money(savings),
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1D3557),
+            ),
+          ),
+
+          const SizedBox(height: 7),
+
+          Text(
+            goalCount == 0
+                ? 'No savings goals yet'
+                : goalCount == 1
+                ? 'Across 1 savings goal'
+                : 'Across $goalCount savings goals',
+            style: const TextStyle(
+              color: Color(0xFF7C3AED),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildComparisonCard({
     required double currentIncome,
     required double previousIncome,
     required double currentExpenses,
     required double previousExpenses,
-    required double currentSavings,
-    required double previousSavings,
-    required DateTime previousMonth,
+    required double currentNet,
+    required double previousNet,
   }) {
     return Container(
       width: double.infinity,
@@ -559,7 +656,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Current vs Previous Month',
+            'Current vs Previous Period',
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -569,10 +666,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
           const SizedBox(height: 5),
 
-          Text(
-            '${_monthLabel(_selectedMonth)} vs '
-            '${_monthLabel(previousMonth)}',
-            style: const TextStyle(color: Colors.white60, fontSize: 12),
+          const Text(
+            'The previous period uses the same number of days immediately before the selected period.',
+            style: TextStyle(color: Colors.white70, fontSize: 11),
           ),
 
           const SizedBox(height: 16),
@@ -594,9 +690,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
           const SizedBox(height: 14),
 
           _ComparisonRow(
-            title: 'Savings',
-            current: _money(currentSavings),
-            previous: _money(previousSavings),
+            title: 'Net Cash Flow',
+            current: _money(currentNet),
+            previous: _money(previousNet),
           ),
         ],
       ),
@@ -604,14 +700,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Widget _buildCategoryCard({
-    required String name,
+    required String category,
     required double amount,
-    required double limit,
     required double totalExpenses,
   }) {
-    final color = _categoryColor(name);
-
-    final progress = _categoryProgress(amount, limit, totalExpenses);
+    final percentage = totalExpenses > 0 ? amount / totalExpenses : 0.0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -624,16 +717,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                backgroundColor: color.withValues(alpha: 0.15),
-                child: Icon(Icons.category_outlined, color: color),
+              const CircleAvatar(
+                backgroundColor: Color(0xFFE1FAF8),
+                child: Icon(Icons.category_outlined, color: Color(0xFF0E9F99)),
               ),
 
               const SizedBox(width: 12),
 
               Expanded(
                 child: Text(
-                  name,
+                  category,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -653,10 +748,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
-              value: progress,
+              value: percentage.clamp(0.0, 1.0),
               minHeight: 8,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation<Color>(color),
+              backgroundColor: const Color(0xFFE2E8F0),
+              color: const Color(0xFF14B8B1),
             ),
           ),
 
@@ -665,10 +760,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              limit > 0
-                  ? '${(amount / limit * 100).toStringAsFixed(1)}% of \$${limit.toStringAsFixed(2)} budget'
-                  : '${(progress * 100).toStringAsFixed(1)}% of monthly expenses',
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              '${(percentage * 100).toStringAsFixed(1)}% of selected expenses',
+              style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
             ),
           ),
         ],
@@ -676,63 +769,43 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _buildNoCategoryData() {
+  Widget _buildEmptyCategories() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: const Column(
         children: [
-          Icon(Icons.analytics_outlined, size: 42, color: Colors.grey),
+          Icon(Icons.pie_chart_outline, size: 42, color: Color(0xFF94A3B8)),
+
           SizedBox(height: 10),
+
           Text(
-            'No expense data for this month',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _loadingScreen() {
-    return const Scaffold(
-      backgroundColor: Color(0xFFF5F7FB),
-      body: Center(child: CircularProgressIndicator()),
-    );
-  }
-
-  Widget _errorScreen(String message, Object? error) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              '$message\n\n$error',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.red),
+            'No expense data for this period',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF475569),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
 class _ComparisonRow extends StatelessWidget {
-  final String title;
-  final String current;
-  final String previous;
-
   const _ComparisonRow({
     required this.title,
     required this.current,
     required this.previous,
   });
+
+  final String title;
+  final String current;
+  final String previous;
 
   @override
   Widget build(BuildContext context) {
@@ -741,6 +814,7 @@ class _ComparisonRow extends StatelessWidget {
         Expanded(
           child: Text(title, style: const TextStyle(color: Colors.white70)),
         ),
+
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -751,6 +825,9 @@ class _ComparisonRow extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+
+            const SizedBox(height: 2),
+
             Text(
               'Previous: $previous',
               style: const TextStyle(color: Colors.white60, fontSize: 11),
