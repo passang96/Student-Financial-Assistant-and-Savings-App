@@ -854,9 +854,11 @@ class BudgetCategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double remaining = limit - spent;
+    final bool hasBudget = limit > 0;
 
-    final bool exceeded = remaining < 0;
+    final double remaining = hasBudget ? limit - spent : 0;
+
+    final bool exceeded = hasBudget && remaining < 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -910,10 +912,15 @@ class BudgetCategoryCard extends StatelessWidget {
                 ),
               ),
               Text(
-                'Limit \$${limit.toStringAsFixed(2)}',
-                style: const TextStyle(
+                hasBudget
+                    ? 'Limit \$${limit.toStringAsFixed(2)}'
+                    : 'No budget set',
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
+                  color: hasBudget
+                      ? const Color(0xFF222222)
+                      : const Color(0xFF64748B),
                 ),
               ),
             ],
@@ -924,7 +931,7 @@ class BudgetCategoryCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
-              value: progress,
+              value: hasBudget ? progress : 0,
               minHeight: 7,
               backgroundColor: const Color(0xFFE1E5EA),
               valueColor: AlwaysStoppedAnimation<Color>(
@@ -938,7 +945,9 @@ class BudgetCategoryCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              exceeded
+              !hasBudget
+                  ? 'Set a budget to track this category'
+                  : exceeded
                   ? '\$${(-remaining).toStringAsFixed(2)} over budget'
                   : '\$${remaining.toStringAsFixed(2)} remaining',
               style: TextStyle(

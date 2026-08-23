@@ -9,6 +9,8 @@ import '../notifications/notifications_screen.dart';
 import '../savings/savings_screen.dart';
 import '../transactions/transaction_history_screen.dart';
 import 'edit_profile_screen.dart';
+import 'help_faq_screen.dart';
+import 'privacy_policy_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -73,10 +75,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ).push(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
   }
 
-  void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(
+  void _openHelpFaq() {
+    Navigator.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('$feature will be available soon.')));
+    ).push(MaterialPageRoute(builder: (_) => const HelpFaqScreen()));
+  }
+
+  void _openPrivacyPolicy() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
   }
 
   @override
@@ -163,8 +171,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
+                  onPressed: () async {
+                    final updated = await Navigator.of(context).push<bool>(
                       MaterialPageRoute(
                         builder: (_) => EditProfileScreen(
                           initialName: name,
@@ -173,6 +181,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                     );
+
+                    if (updated == true && mounted) {
+                      setState(() {});
+                    }
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primaryTeal,
@@ -219,17 +231,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _ProfileMenuTile(
                 icon: Icons.help_outline,
                 label: 'Help & FAQ',
-                onTap: () {
-                  _showComingSoon('Help & FAQ');
-                },
+                onTap: _openHelpFaq,
               ),
 
               _ProfileMenuTile(
                 icon: Icons.privacy_tip_outlined,
                 label: 'Privacy Policy',
-                onTap: () {
-                  _showComingSoon('Privacy Policy');
-                },
+                onTap: _openPrivacyPolicy,
               ),
 
               const SizedBox(height: 28),

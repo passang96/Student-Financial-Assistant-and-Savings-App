@@ -141,13 +141,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
         );
   }
 
-  double _percentageChange(double current, double previous) {
+  double? _percentageChange(double current, double previous) {
+    // A percentage comparison cannot be calculated
+    // meaningfully when the previous value is zero.
     if (previous == 0) {
-      if (current == 0) {
-        return 0;
-      }
-
-      return 100;
+      return null;
     }
 
     return ((current - previous) / previous) * 100;
@@ -386,6 +384,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                     color: Colors.green,
                                   ),
                                 ),
+
                                 SizedBox(
                                   width: width,
                                   child: _buildSummaryCard(
@@ -400,6 +399,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                     lowerIsBetter: true,
                                   ),
                                 ),
+
                                 SizedBox(
                                   width: width,
                                   child: _buildSummaryCard(
@@ -413,6 +413,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                     color: const Color(0xFF0E9F99),
                                   ),
                                 ),
+
                                 SizedBox(
                                   width: width,
                                   child: _buildSavingsCard(
@@ -484,16 +485,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget _buildSummaryCard({
     required String title,
     required double amount,
-    required double comparison,
+    required double? comparison,
     required IconData icon,
     required Color color,
     bool lowerIsBetter = false,
   }) {
-    final increased = comparison > 0;
+    final bool hasComparison = comparison != null;
+
+    final bool increased = (comparison ?? 0) > 0;
 
     Color comparisonColor;
 
-    if (comparison == 0) {
+    if (!hasComparison || comparison == 0) {
       comparisonColor = const Color(0xFF64748B);
     } else if (lowerIsBetter) {
       comparisonColor = increased ? Colors.red : Colors.green;
@@ -503,7 +506,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     String comparisonText;
 
-    if (comparison == 0) {
+    if (!hasComparison) {
+      comparisonText = 'No previous-period data';
+    } else if (comparison == 0) {
       comparisonText = 'No change vs previous period';
     } else {
       comparisonText =
