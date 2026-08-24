@@ -1,23 +1,36 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../services/firestore_service.dart';
+import '../models/transaction_model.dart';
+import '../services/transaction_service.dart';
 import '../services/calculation_service.dart';
 
 class ReportsScreen extends StatelessWidget {
   ReportsScreen({super.key});
 
-  final FirestoreService firestoreService = FirestoreService();
+  final TransactionService transactionService = TransactionService();
 
   @override
   Widget build(BuildContext context) {
+    // Current date
+    final now = DateTime.now();
+
+    // First day of current month
+    final startOfMonth = DateTime(now.year, now.month, 1);
+
+    // Last day of current month
+    final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Reports'), centerTitle: true),
+
       body: Padding(
         padding: const EdgeInsets.all(16.0),
 
-        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: firestoreService.getCurrentMonthTransactions(),
+        child: StreamBuilder<List<TransactionModel>>(
+          stream: transactionService.getTransactionsByDateRange(
+            startDate: startOfMonth,
+            endDate: endOfMonth,
+          ),
 
           builder: (context, snapshot) {
             // Loading
@@ -30,49 +43,47 @@ class ReportsScreen extends StatelessWidget {
               return Center(child: Text('Error: ${snapshot.error}'));
             }
 
-            // Start totals
+            // Get transactions
+            final transactions = snapshot.data ?? <TransactionModel>[];
+
+            // Financial totals
             double totalIncome = 0.0;
             double totalExpenses = 0.0;
 
-            // Category spending
-            Map<String, double> categorySpending = {};
+            // Store category totals
+            final Map<String, double> categorySpending = {};
 
-            // Read Firestore transactions
-            if (snapshot.hasData) {
-              for (final doc in snapshot.data!.docs) {
-                final data = doc.data();
+            // Calculate totals
+            for (final transaction in transactions) {
+              final double amount = transaction.amount;
 
-                final double amount =
-                    (data['amount'] as num?)?.toDouble() ?? 0.0;
+              final String type = transaction.type.toLowerCase();
 
-                final String type =
-                    data['type']?.toString().toLowerCase() ?? '';
+              final String category = transaction.category.trim().isEmpty
+                  ? 'Other'
+                  : transaction.category;
 
-                final String category = data['category']?.toString() ?? 'Other';
+              // Income
+              if (type == 'income') {
+                totalIncome += amount;
+              }
 
-                // Income
-                if (type == 'income') {
-                  totalIncome += amount;
-                }
+              // Expense
+              if (type == 'expense') {
+                totalExpenses += amount;
 
-                // Expense
-                if (type == 'expense') {
-                  totalExpenses += amount;
-
-                  // Add expense to category
-                  categorySpending[category] =
-                      (categorySpending[category] ?? 0.0) + amount;
-                }
+                categorySpending[category] =
+                    (categorySpending[category] ?? 0.0) + amount;
               }
             }
 
-            // Balance
+            // Calculate balance
             final double balance = CalculationService.calculateBalance(
               totalIncome,
               totalExpenses,
             );
 
-            // Savings
+            // Calculate available savings
             final double savings = CalculationService.calculateSavings(
               totalIncome,
               totalExpenses,
@@ -81,7 +92,9 @@ class ReportsScreen extends StatelessWidget {
             return SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+
                 children: [
+                  // Current Month heading
                   const Text(
                     'Current Month',
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
@@ -144,7 +157,7 @@ class ReportsScreen extends StatelessWidget {
                   Card(
                     child: ListTile(
                       leading: const Icon(Icons.savings),
-                      title: const Text('Savings'),
+                      title: const Text('Available Savings'),
                       trailing: Text(
                         '\$${savings.toStringAsFixed(2)}',
                         style: const TextStyle(
@@ -157,6 +170,7 @@ class ReportsScreen extends StatelessWidget {
 
                   const SizedBox(height: 30),
 
+                  // Category Spending heading
                   const Text(
                     'Category Spending',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -164,17 +178,40 @@ class ReportsScreen extends StatelessWidget {
 
                   const SizedBox(height: 10),
 
+                  // No expenses
                   if (categorySpending.isEmpty)
-                    const Text('No expenses for this month.'),
-
-                  ...categorySpending.entries.map(
-                    (entry) => Card(
-                      child: ListTile(
-                        title: Text(entry.key),
-                        trailing: Text('\$${entry.value.toStringAsFixed(2)}'),
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('No expenses for this month.'),
                       ),
                     ),
+
+                  // Category cards
+                  ...categorySpending.entries.map((entry) {
+                    return Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.category),
+                        title: Text(entry.key),
+                        trailing: Text(
+                          '\$${entry.value.toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    );
+                  }),
+
+                  const SizedBox(height: 20),
+
+                  // Transaction count
+                  Center(
+                    child: Text(
+                      '${transactions.length} transactions this month',
+                      style: const TextStyle(fontSize: 14),
+                    ),
                   ),
+
+                  const SizedBox(height: 20),
                 ],
               ),
             );
