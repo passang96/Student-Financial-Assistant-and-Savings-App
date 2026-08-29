@@ -150,17 +150,60 @@ class BudgetService {
       categoryExpenses[category] = (categoryExpenses[category] ?? 0) + amount;
     }
 
+    /*
+     * PROJECTED SPENDING
+     *
+     * We estimate the user's spending for the complete month
+     * using their average daily spending so far.
+     *
+     * Example:
+     *
+     * $600 spent after 15 days
+     *
+     * Average per day = 600 / 15 = $40
+     *
+     * 30-day month:
+     *
+     * Projected spending = 40 × 30 = $1,200
+     */
+
+    final int daysElapsed = now.day;
+
+    final int daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+
+    final double totalProjectedExpenses = _calculateProjectedSpending(
+      spentAmount: totalExpenses,
+      daysElapsed: daysElapsed,
+      daysInMonth: daysInMonth,
+    );
+
     final double totalBudget =
         (budgetData['totalBudget'] as num?)?.toDouble() ?? 0;
 
+    /*
+     * OVERALL MONTHLY BUDGET
+     */
+
     if (totalBudget > 0) {
+      // Existing budget warning / exceeded notifications.
       await _notificationService.checkBudget(
         budgetId: 'overall_monthly_budget',
         category: 'overall monthly',
         budgetAmount: totalBudget,
         spentAmount: totalExpenses,
       );
+
+      // Passang's projected overspending notification.
+      await _notificationService.projectedOverspending(
+        category: 'overall monthly',
+        projectedAmount: totalProjectedExpenses,
+        budgetAmount: totalBudget,
+      );
     }
+
+    /*
+     * CATEGORY BUDGETS
+     */
 
     final rawCategoryBudgets = budgetData['categoryBudgets'];
 
@@ -182,14 +225,47 @@ class BudgetService {
 
         final double spentAmount = categoryExpenses[category] ?? 0;
 
+        /*
+         * Calculate expected end-of-month spending
+         * for this individual category.
+         */
+
+        final double projectedAmount = _calculateProjectedSpending(
+          spentAmount: spentAmount,
+          daysElapsed: daysElapsed,
+          daysInMonth: daysInMonth,
+        );
+
+        // Existing 80% warning and exceeded notification.
         await _notificationService.checkBudget(
           budgetId: 'category_${_safeBudgetId(category)}',
           category: category,
           budgetAmount: categoryLimit,
           spentAmount: spentAmount,
         );
+
+        // New projected overspending notification.
+        await _notificationService.projectedOverspending(
+          category: category,
+          projectedAmount: projectedAmount,
+          budgetAmount: categoryLimit,
+        );
       }
     }
+  }
+
+  double _calculateProjectedSpending({
+    required double spentAmount,
+    required int daysElapsed,
+    required int daysInMonth,
+  }) {
+    if (spentAmount <= 0 || daysElapsed <= 0 || daysInMonth <= 0) {
+      return 0;
+    }
+
+    final double averageDailySpending = spentAmount / daysElapsed;
+
+    return averageDailySpending * daysInMonth;
   }
 
   String _safeBudgetId(String value) {

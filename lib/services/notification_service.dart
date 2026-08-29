@@ -166,6 +166,37 @@ class NotificationService {
     }
   }
 
+  Future<void> projectedOverspending({
+    required String category,
+    required double projectedAmount,
+    required double budgetAmount,
+  }) async {
+    if (uid == null) {
+      throw Exception('User not logged in');
+    }
+
+    if (budgetAmount <= 0 || projectedAmount <= budgetAmount) {
+      return;
+    }
+
+    final difference = projectedAmount - budgetAmount;
+
+    final now = DateTime.now();
+
+    final String monthKey =
+        '${now.year}-'
+        '${now.month.toString().padLeft(2, '0')}';
+
+    await createNotification(
+      title: 'Possible Overspending',
+      message:
+          'At your current spending rate, $category may exceed '
+          'its budget by \$${difference.toStringAsFixed(2)}.',
+      type: 'projected_overspending',
+      uniqueKey: 'projected_overspending_${category}_$monthKey',
+    );
+  }
+
   Future<void> checkGoalProgress({
     required String goalId,
     required String goalName,
