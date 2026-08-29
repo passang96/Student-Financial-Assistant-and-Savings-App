@@ -63,7 +63,11 @@ class _ImportPreviewScreenState extends State<ImportPreviewScreen> {
 
     setState(() => _isImporting = true);
     try {
-      await _transactionWriter.importTransactions(_transactions);
+      await _transactionWriter.importTransactions(
+        _transactions,
+        fileName: widget.fileName,
+      );
+
       if (mounted) {
         Navigator.of(context).pop(_transactions.length);
       }
