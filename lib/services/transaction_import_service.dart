@@ -5,8 +5,20 @@ import '../models/imported_transaction.dart';
 import 'budget_service.dart';
 import 'import_id_service.dart';
 
+class TransactionImportResult {
+  const TransactionImportResult({
+    required this.selectedCount,
+    required this.importedCount,
+    required this.duplicateCount,
+  });
+
+  final int selectedCount;
+  final int importedCount;
+  final int duplicateCount;
+}
+
 abstract interface class ImportedTransactionWriter {
-  Future<void> importTransactions(
+  Future<TransactionImportResult> importTransactions(
     List<ImportedTransaction> transactions, {
     String? fileName,
   });
@@ -31,12 +43,16 @@ class TransactionImportService implements ImportedTransactionWriter {
   final ImportIdService _importIdService;
 
   @override
-  Future<void> importTransactions(
+  Future<TransactionImportResult> importTransactions(
     List<ImportedTransaction> transactions, {
     String? fileName,
   }) async {
     if (transactions.isEmpty) {
-      return;
+      return const TransactionImportResult(
+        selectedCount: 0,
+        importedCount: 0,
+        duplicateCount: 0,
+      );
     }
 
     final user = _firebaseAuth.currentUser;
@@ -45,53 +61,130 @@ class TransactionImportService implements ImportedTransactionWriter {
       throw StateError('You must be logged in to import transactions.');
     }
 
-    final transactionCollection = _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('transactions');
+    final userDocument = _firestore.collection('users').doc(user.uid);
 
-    final csvImportCollection = _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('csvImports');
+    final transactionCollection = userDocument.collection('transactions');
 
-    String? importId;
+    final csvImportCollection = userDocument.collection('csvImports');
 
-    // Duplicate protection is used when the CSV filename is available.
-    if (fileName != null && fileName.trim().isNotEmpty) {
-      final totalAmount = transactions.fold<double>(
-        0,
-        (total, transaction) => total + transaction.amount,
+    final transactionEntries = transactions.map((transaction) {
+      final transactionId = _importIdService.generateTransactionId(
+        date: transaction.date,
+        description: transaction.description,
+        amount: transaction.amount,
+        type: transaction.type.firestoreValue,
       );
 
-      importId = _importIdService.generateImportId(
-        fileName: fileName,
-        transactionCount: transactions.length,
-        totalAmount: totalAmount,
+      return _TransactionImportEntry(
+        transaction: transaction,
+        transactionId: transactionId,
       );
+    }).toList();
 
-      final existingImport = await csvImportCollection.doc(importId).get();
+    /*
+     * Remove duplicate transactions that occur inside the
+     * currently selected CSV data itself.
+     */
+    final uniqueEntries = <String, _TransactionImportEntry>{};
 
-      if (existingImport.exists) {
-        throw StateError(
-          'This CSV file appears to have already been imported.',
-        );
+    for (final entry in transactionEntries) {
+      uniqueEntries.putIfAbsent(entry.transactionId, () => entry);
+    }
+
+    final duplicateInsideSelection =
+        transactionEntries.length - uniqueEntries.length;
+
+    /*
+     * Check whether each transaction fingerprint already
+     * exists in Firestore.
+     */
+    final newEntries = <_TransactionImportEntry>[];
+
+    var duplicateInFirestore = 0;
+
+    for (final entry in uniqueEntries.values) {
+      final existingDocument = await transactionCollection
+          .doc(entry.transactionId)
+          .get();
+
+      if (existingDocument.exists) {
+        duplicateInFirestore++;
+      } else {
+        newEntries.add(entry);
       }
     }
 
-    for (var start = 0; start < transactions.length; start += _writesPerBatch) {
-      final end = (start + _writesPerBatch).clamp(0, transactions.length);
+    final totalDuplicateCount = duplicateInsideSelection + duplicateInFirestore;
+
+    /*
+     * Nothing new needs to be saved.
+     *
+     * Return a normal result instead of throwing an error,
+     * because duplicate detection is an expected outcome.
+     */
+    if (newEntries.isEmpty) {
+      return TransactionImportResult(
+        selectedCount: transactions.length,
+        importedCount: 0,
+        duplicateCount: totalDuplicateCount,
+      );
+    }
+
+    /*
+     * Generate an ID for this import session.
+     *
+     * Transaction fingerprints handle duplicate prevention.
+     * The import ID is only used to group and record this
+     * particular CSV import session.
+     */
+    String? importId;
+
+    if (fileName != null && fileName.trim().isNotEmpty) {
+      final totalAmount = newEntries.fold<double>(
+        0,
+        (total, entry) => total + entry.transaction.amount,
+      );
+
+      final importedTransactions = newEntries
+          .map((entry) => entry.transaction)
+          .toList();
+
+      final earliestDate = _earliestDate(importedTransactions);
+
+      final latestDate = _latestDate(importedTransactions);
+
+      final periodKey = '${_dateKey(earliestDate)}_${_dateKey(latestDate)}';
+
+      importId = _importIdService.generateImportId(
+        fileName: fileName,
+        transactionCount: newEntries.length,
+        totalAmount: totalAmount,
+        periodKey: periodKey,
+      );
+    }
+
+    /*
+     * Save only transactions that do not already exist.
+     */
+    for (var start = 0; start < newEntries.length; start += _writesPerBatch) {
+      final end = (start + _writesPerBatch).clamp(0, newEntries.length);
 
       final batch = _firestore.batch();
 
-      for (final transaction in transactions.sublist(start, end)) {
+      for (final entry in newEntries.sublist(start, end)) {
+        final transaction = entry.transaction;
+
+        final documentReference = transactionCollection.doc(
+          entry.transactionId,
+        );
+
         final timestamp = FieldValue.serverTimestamp();
 
-        batch.set(transactionCollection.doc(), {
+        batch.set(documentReference, {
           'description': transaction.description,
 
-          // Transaction History and Dashboard use
-          // `notes` for the visible transaction description.
+          // Transaction History and Dashboard use notes
+          // for the visible transaction description.
           'notes': transaction.description,
 
           'amount': transaction.amount,
@@ -99,14 +192,11 @@ class TransactionImportService implements ImportedTransactionWriter {
           'category': transaction.category,
           'date': Timestamp.fromDate(transaction.date),
 
-          // Marks the transaction as having been
-          // imported from an external CSV file.
+          // CSV-specific metadata.
           'source': 'csv',
           'sourceRow': transaction.sourceRow,
-
-          // Allows imported transactions to be associated
-          // with the CSV import record.
-          'importId': ?importId,
+          'transactionFingerprint': entry.transactionId,
+          'importId': importId,
 
           'createdAt': timestamp,
           'updatedAt': timestamp,
@@ -116,28 +206,90 @@ class TransactionImportService implements ImportedTransactionWriter {
       await batch.commit();
     }
 
-    // Save a record of the completed CSV import.
-    //
-    // We only create this record after all transaction batches
-    // have been successfully committed.
+    /*
+     * Save the CSV import-history record.
+     */
     if (importId != null) {
+      final importedTransactions = newEntries
+          .map((entry) => entry.transaction)
+          .toList();
+
+      final earliestDate = _earliestDate(importedTransactions);
+
+      final latestDate = _latestDate(importedTransactions);
+
       await csvImportCollection.doc(importId).set({
         'fileName': fileName,
-        'transactionCount': transactions.length,
+        'selectedTransactionCount': transactions.length,
+        'transactionCount': newEntries.length,
+        'duplicateCount': totalDuplicateCount,
+        'periodStart': Timestamp.fromDate(earliestDate),
+        'periodEnd': Timestamp.fromDate(latestDate),
         'importedAt': FieldValue.serverTimestamp(),
         'importId': importId,
       });
     }
 
-    // CSV imports write directly to Firestore instead of
-    // FirestoreService.addTransaction(), so refresh budget
-    // alerts once after the complete import has finished.
+    /*
+     * Refresh budget warnings and projected-spending alerts
+     * after the transactions have been saved.
+     */
     try {
       await _budgetService.checkCurrentMonthBudgetAlerts();
     } catch (_) {
-      // The imported transactions have already been saved
-      // successfully. A temporary notification failure should
-      // not make the whole CSV import appear unsuccessful.
+      // Transaction import already succeeded.
+      // Notification failure should not mark the CSV import
+      // itself as unsuccessful.
     }
+
+    return TransactionImportResult(
+      selectedCount: transactions.length,
+      importedCount: newEntries.length,
+      duplicateCount: totalDuplicateCount,
+    );
   }
+
+  DateTime _earliestDate(List<ImportedTransaction> transactions) {
+    var earliest = transactions.first.date;
+
+    for (final transaction in transactions.skip(1)) {
+      if (transaction.date.isBefore(earliest)) {
+        earliest = transaction.date;
+      }
+    }
+
+    return earliest;
+  }
+
+  DateTime _latestDate(List<ImportedTransaction> transactions) {
+    var latest = transactions.first.date;
+
+    for (final transaction in transactions.skip(1)) {
+      if (transaction.date.isAfter(latest)) {
+        latest = transaction.date;
+      }
+    }
+
+    return latest;
+  }
+
+  String _dateKey(DateTime date) {
+    final year = date.year.toString().padLeft(4, '0');
+
+    final month = date.month.toString().padLeft(2, '0');
+
+    final day = date.day.toString().padLeft(2, '0');
+
+    return '$year-$month-$day';
+  }
+}
+
+class _TransactionImportEntry {
+  const _TransactionImportEntry({
+    required this.transaction,
+    required this.transactionId,
+  });
+
+  final ImportedTransaction transaction;
+  final String transactionId;
 }
