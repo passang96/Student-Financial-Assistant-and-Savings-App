@@ -19,6 +19,8 @@ class TransactionImportService implements ImportedTransactionWriter {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _firebaseAuth;
 
+  static String collectionPath(String uid) => 'users/$uid/transactions';
+
   @override
   Future<void> importTransactions(
     List<ImportedTransaction> transactions,
@@ -32,10 +34,7 @@ class TransactionImportService implements ImportedTransactionWriter {
       throw StateError('You must be logged in to import transactions.');
     }
 
-    final collection = _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('transactions');
+    final collection = _firestore.collection(collectionPath(user.uid));
 
     for (var start = 0; start < transactions.length; start += _writesPerBatch) {
       final end = (start + _writesPerBatch).clamp(0, transactions.length);

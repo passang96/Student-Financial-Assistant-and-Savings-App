@@ -93,6 +93,19 @@ void main() {
     );
   });
 
+  test('reports an unreadable selection without exposing parser errors', () {
+    expect(
+      () => service.parse(Uint8List.fromList([0, 159, 146, 150])),
+      throwsA(
+        isA<CsvImportException>().having(
+          (error) => error.message,
+          'message',
+          contains('Could not find Date, Description, and Amount headers'),
+        ),
+      ),
+    );
+  });
+
   test('reports the source row for invalid data', () {
     expect(
       () => service.parse(

@@ -1,14 +1,21 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/auth_result.dart';
+import '../models/user_profile.dart';
 import '../utils/auth_validator.dart';
 import '../utils/firebase_auth_error_message.dart';
+import 'user_profile_store.dart';
 
 class AuthService {
-  AuthService({FirebaseAuth? firebaseAuth})
-    : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
+  AuthService({FirebaseAuth? firebaseAuth, UserProfileStore? profileStore})
+    : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
+      _profileStore = profileStore;
 
   final FirebaseAuth _firebaseAuth;
+  final UserProfileStore? _profileStore;
+
+  UserProfileStore get _resolvedProfileStore =>
+      _profileStore ?? FirebaseUserProfileStore();
 
   Future<AuthResult> login({
     required String email,
@@ -94,6 +101,13 @@ class AuthService {
 
       await user.updateDisplayName(cleanName);
       await user.reload();
+      await _resolvedProfileStore.save(
+        UserProfile(
+          uid: user.uid,
+          displayName: cleanName,
+          email: user.email?.trim() ?? cleanEmail,
+        ),
+      );
 
       return AuthResult.success(
         message: 'Registration successful.',
@@ -134,6 +148,63 @@ class AuthService {
       return AuthResult.failure(_firebaseErrorMessage(error));
     } catch (_) {
       return AuthResult.failure('Unable to log out. Please try again.');
+    }
+  }
+
+  Future<UserProfile?> loadProfile() async {
+    final user = currentUser;
+    if (user == null) {
+      return null;
+    }
+
+    try {
+      final storedProfile = await _resolvedProfileStore.load(user.uid);
+      if (storedProfile != null) {
+        return UserProfile.fromMap(
+          uid: user.uid,
+          data: storedProfile,
+          fallbackUser: user,
+        );
+      }
+    } catch (_) {
+      // Firebase Authentication remains a safe fallback if the profile
+      // document is temporarily unavailable.
+    }
+
+    return UserProfile.fromUser(user);
+  }
+
+  Future<AuthResult> updateProfileName({required String name}) async {
+    final cleanName = name.trim();
+    final nameError = AuthValidator.validateName(cleanName);
+    if (nameError != null) {
+      return _validationFailure(nameError);
+    }
+
+    final user = currentUser;
+    if (user == null) {
+      return AuthResult.failure(
+        'Your session has expired. Please log in again.',
+      );
+    }
+
+    try {
+      await user.updateDisplayName(cleanName);
+      await user.reload();
+      await _resolvedProfileStore.save(
+        UserProfile(
+          uid: user.uid,
+          displayName: cleanName,
+          email: user.email?.trim() ?? '',
+        ),
+      );
+      return AuthResult.success(message: 'Profile updated successfully.');
+    } on FirebaseAuthException catch (error) {
+      return AuthResult.failure(_firebaseErrorMessage(error));
+    } catch (_) {
+      return AuthResult.failure(
+        'Your profile could not be updated. Please try again.',
+      );
     }
   }
 

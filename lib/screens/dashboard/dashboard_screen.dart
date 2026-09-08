@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../controllers/auth_controller.dart';
 import '../../models/financial_notification.dart';
 import '../../widgets/user_details_card.dart';
+import '../help/help_faq_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
 import '../transactions/csv_import_screen.dart';
@@ -39,6 +40,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
     );
+  }
+
+  void _openHelp() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const HelpFaqScreen()));
   }
 
   Future<void> _openCsvImport() async {
@@ -106,6 +113,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           appBar: AppBar(
             title: const Text('Dashboard'),
             actions: [
+              IconButton(
+                tooltip: 'Help & FAQ',
+                onPressed: _openHelp,
+                icon: const Icon(Icons.help_outline),
+              ),
               IconButton(
                 tooltip: 'Notifications',
                 onPressed: _openNotifications,

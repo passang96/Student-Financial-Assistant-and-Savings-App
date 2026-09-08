@@ -1,18 +1,16 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/auth_result.dart';
+import '../models/user_profile.dart';
 import '../services/auth_service.dart';
 
 class AuthController {
   AuthController({AuthService? authService})
-      : _authService = authService ?? AuthService();
+    : _authService = authService ?? AuthService();
 
   final AuthService _authService;
 
-  Future<AuthResult> login({
-    required String email,
-    required String password,
-  }) {
+  Future<AuthResult> login({required String email, required String password}) {
     return _authService.login(email: email, password: password);
   }
 
@@ -35,6 +33,12 @@ class AuthController {
   }
 
   Future<AuthResult> logout() => _authService.logout();
+
+  Future<UserProfile?> loadProfile() => _authService.loadProfile();
+
+  Future<AuthResult> updateProfileName({required String name}) {
+    return _authService.updateProfileName(name: name);
+  }
 
   User? get currentUser => _authService.currentUser;
   String? get currentUserId => _authService.currentUserId;
