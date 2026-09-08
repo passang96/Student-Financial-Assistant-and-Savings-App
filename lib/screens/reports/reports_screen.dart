@@ -9,21 +9,19 @@ class ReportsScreen extends StatefulWidget {
 
 class _ReportsScreenState extends State<ReportsScreen> {
   String selectedMonth = 'August 2026';
-
-  String selectedPeriod = 'Current Month';
-
-  DateTime? fromDate;
+String selectedPeriod = 'Monthly';
+  
+DateTime? fromDate;
+ 
 DateTime? toDate;
 
 final List<String> reportPeriods = [
-  'This Week',
-  'Last Week',
-  'This Fortnight',
-  'Last Fortnight',
-  'This Month',
-  'Last Month',
-  'Custom Range',
+  'Weekly',
+  'Fortnightly',
+  'Monthly',
+  'Custom Date Range',
 ];
+ 
 
   final List<String> months = [
     'August 2026',
@@ -84,13 +82,13 @@ final List<String> reportPeriods = [
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
   _buildPeriodSelector(),
-  const SizedBox(height: 20),
+const SizedBox(height: 20),
 
-  _buildMonthSelector(),
-  const SizedBox(height: 20),
-
-            const Text(
-              'Monthly Summary',
+if (selectedPeriod == 'Monthly') _buildMonthSelector(),
+if (selectedPeriod == 'Custom Date Range') _buildCustomDateRange(),
+const SizedBox(height: 20),
+            Text(
+              '$selectedPeriod Summary',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -178,15 +176,25 @@ Widget _buildPeriodSelector() {
       prefixIcon: Icon(Icons.calendar_month),
     ),
     items: const [
-      DropdownMenuItem(
-        value: 'Current Month',
-        child: Text('Current Month'),
-      ),
-      DropdownMenuItem(
-        value: 'Previous Month',
-        child: Text('Previous Month'),
-      ),
-    ],
+  DropdownMenuItem(
+    value: 'Weekly',
+    child: Text('Weekly'),
+  ),
+  DropdownMenuItem(
+    value: 'Fortnightly',
+    child: Text('Fortnightly'),
+  ),
+  DropdownMenuItem(
+    value: 'Monthly',
+    child: Text('Monthly'),
+  ),
+  DropdownMenuItem(
+    value: 'Custom Date Range',
+    child: Text('Custom Date Range'),
+  ),
+],
+      
+   
     onChanged: (value) {
       if (value != null) {
         setState(() {
@@ -226,7 +234,61 @@ Widget _buildMonthSelector() {
       ),
     );
   }
+Widget _buildCustomDateRange() {
+  return Row(
+    children: [
+      Expanded(
+        child: OutlinedButton.icon(
+          icon: const Icon(Icons.calendar_today),
+          label: Text(
+            fromDate == null
+                ? 'From Date'
+                : '${fromDate!.day}/${fromDate!.month}/${fromDate!.year}',
+          ),
+          onPressed: () async {
+            final date = await showDatePicker(
+              context: context,
+              initialDate: fromDate ?? DateTime.now(),
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2030),
+            );
 
+            if (date != null) {
+              setState(() {
+                fromDate = date;
+              });
+            }
+          },
+        ),
+      ),
+      const SizedBox(width: 16),
+      Expanded(
+        child: OutlinedButton.icon(
+          icon: const Icon(Icons.calendar_today),
+          label: Text(
+            toDate == null
+                ? 'To Date'
+                : '${toDate!.day}/${toDate!.month}/${toDate!.year}',
+          ),
+          onPressed: () async {
+            final date = await showDatePicker(
+              context: context,
+              initialDate: toDate ?? DateTime.now(),
+              firstDate: fromDate ?? DateTime(2020),
+              lastDate: DateTime(2030),
+            );
+
+            if (date != null) {
+              setState(() {
+                toDate = date;
+              });
+            }
+          },
+        ),
+      ),
+    ],
+  );
+}
   Widget _buildSummaryCard({
     required String title,
     required double amount,
@@ -292,11 +354,11 @@ Widget _buildMonthSelector() {
         color: const Color(0xFF1D3557),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Current vs Previous Month',
+           'Current vs Previous ${selectedPeriod == 'Weekly' ? 'Week' : selectedPeriod == 'Fortnightly' ? 'Fortnight' : selectedPeriod == 'Monthly' ? 'Month' : 'Period'}',
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
