@@ -266,4 +266,79 @@ class GoalService {
   }) {
     return currentAmount >= targetAmount;
   }
+
+  // ------------------------------------------------------------
+  // SAVINGS RECOMMENDATION
+  // ------------------------------------------------------------
+
+  double calculateWeeklyRecommendation({
+    required double currentAmount,
+    required double targetAmount,
+    required DateTime targetDate,
+  }) {
+    final remaining = calculateRemaining(
+      currentAmount: currentAmount,
+      targetAmount: targetAmount,
+    );
+
+    if (remaining <= 0) {
+      return 0;
+    }
+
+    final now = DateTime.now();
+
+    final today = DateTime(now.year, now.month, now.day);
+
+    final deadline = DateTime(
+      targetDate.year,
+      targetDate.month,
+      targetDate.day,
+    );
+
+    final daysRemaining = deadline.difference(today).inDays;
+
+    if (daysRemaining <= 0) {
+      return remaining;
+    }
+
+    final weeksRemaining = daysRemaining / 7;
+
+    return remaining / weeksRemaining;
+  }
+
+  double calculateMonthlyRecommendation({
+    required double currentAmount,
+    required double targetAmount,
+    required DateTime targetDate,
+  }) {
+    final remaining = calculateRemaining(
+      currentAmount: currentAmount,
+      targetAmount: targetAmount,
+    );
+
+    if (remaining <= 0) {
+      return 0;
+    }
+
+    final now = DateTime.now();
+
+    final today = DateTime(now.year, now.month, now.day);
+
+    final deadline = DateTime(
+      targetDate.year,
+      targetDate.month,
+      targetDate.day,
+    );
+
+    final daysRemaining = deadline.difference(today).inDays;
+
+    if (daysRemaining <= 0) {
+      return remaining;
+    }
+
+    // 30.44 is the average number of days in a Gregorian month.
+    final monthsRemaining = daysRemaining / 30.44;
+
+    return remaining / monthsRemaining;
+  }
 }
