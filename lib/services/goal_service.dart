@@ -1,8 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'notification_service.dart';
+
 class GoalService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final NotificationService _notificationService = NotificationService();
 
   // Get currently logged-in user's Firebase UID
   String? get uid => FirebaseAuth.instance.currentUser?.uid;
@@ -35,7 +38,7 @@ class GoalService {
       throw Exception('Target amount must be greater than 0');
     }
 
-    await goals.add({
+    final goal = await goals.add({
       'name': name.trim(),
       'targetAmount': targetAmount,
       'currentAmount': 0.0,
@@ -49,6 +52,12 @@ class GoalService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    await _notificationService.savingsRecommendation(
+      goalId: goal.id,
+      goalName: name.trim(),
+      amount: targetAmount,
+    );
   }
 
   // READ ALL SAVINGS GOALS
@@ -135,6 +144,18 @@ class GoalService {
       'achieved': achieved,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    await _notificationService.savingsRecommendation(
+      goalId: goalId,
+      goalName: name.trim(),
+      amount: (targetAmount - currentAmount).clamp(0, double.infinity),
+    );
+    await _notificationService.checkGoalProgress(
+      goalId: goalId,
+      goalName: name.trim(),
+      currentAmount: currentAmount,
+      targetAmount: targetAmount,
+    );
   }
 
   // DELETE SAVINGS GOAL
@@ -225,6 +246,26 @@ class GoalService {
       'amount': contribution,
       'date': FieldValue.serverTimestamp(),
     });
+
+    final updatedGoal = await goalRef.get();
+    final updatedData = updatedGoal.data();
+    final goalName = updatedData?['name'] as String? ?? 'your goal';
+    final targetAmount =
+        (updatedData?['targetAmount'] as num?)?.toDouble() ?? 0;
+    final currentAmount =
+        (updatedData?['currentAmount'] as num?)?.toDouble() ?? 0;
+
+    await _notificationService.checkGoalProgress(
+      goalId: goalId,
+      goalName: goalName,
+      currentAmount: currentAmount,
+      targetAmount: targetAmount,
+    );
+    await _notificationService.savingsRecommendation(
+      goalId: goalId,
+      goalName: goalName,
+      amount: (targetAmount - currentAmount).clamp(0, double.infinity),
+    );
   }
 
   // GET CONTRIBUTION HISTORY

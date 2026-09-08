@@ -18,11 +18,14 @@ class TransactionService {
   }
 
   CollectionReference<Map<String, dynamic>> get transactions {
-    return _firestore.collection('transactions');
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('transactions');
   }
 
   CollectionReference<Map<String, dynamic>> get csvImports {
-    return _firestore.collection('csvImports');
+    return _firestore.collection('users').doc(userId).collection('csvImports');
   }
 
   // SAVE MANUAL TRANSACTION
@@ -102,7 +105,6 @@ class TransactionService {
 
   Stream<List<TransactionModel>> getAllTransactions() {
     return transactions
-        .where('userId', isEqualTo: userId)
         .orderBy('date', descending: true)
         .snapshots()
         .map(
@@ -130,7 +132,6 @@ class TransactionService {
     );
 
     return transactions
-        .where('userId', isEqualTo: userId)
         .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
         .where('date', isLessThanOrEqualTo: Timestamp.fromDate(end))
         .orderBy('date', descending: true)
@@ -161,7 +162,6 @@ class TransactionService {
     );
 
     final snapshot = await transactions
-        .where('userId', isEqualTo: userId)
         .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
         .where('date', isLessThanOrEqualTo: Timestamp.fromDate(end))
         .orderBy('date', descending: true)

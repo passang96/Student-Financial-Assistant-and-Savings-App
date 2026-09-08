@@ -24,6 +24,30 @@ class NotificationService {
         .collection('notifications');
   }
 
+  static String? budgetNotificationType({
+    required double budgetAmount,
+    required double spentAmount,
+  }) {
+    if (budgetAmount <= 0 || spentAmount < 0) {
+      return null;
+    }
+    final percentage = spentAmount / budgetAmount * 100;
+    if (percentage >= 100) {
+      return 'budget_exceeded';
+    }
+    if (percentage >= 80) {
+      return 'budget_warning';
+    }
+    return null;
+  }
+
+  static bool shouldNotifyProjectedOverspending({
+    required double projectedAmount,
+    required double budgetAmount,
+  }) {
+    return budgetAmount > 0 && projectedAmount > budgetAmount;
+  }
+
   // CREATE NOTIFICATION
 
   Future<void> createNotification({
@@ -122,14 +146,17 @@ class NotificationService {
       return;
     }
 
-    final percentage = (spentAmount / budgetAmount) * 100;
+    final notificationType = budgetNotificationType(
+      budgetAmount: budgetAmount,
+      spentAmount: spentAmount,
+    );
 
     final now = DateTime.now();
 
     final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
 
     // Budget exceeded
-    if (percentage >= 100) {
+    if (notificationType == 'budget_exceeded') {
       final uniqueKey = 'budget_exceeded_${budgetId}_$monthKey';
 
       await createNotification(
@@ -144,7 +171,8 @@ class NotificationService {
     }
 
     // Budget warning at 80%
-    if (percentage >= 80) {
+    if (notificationType == 'budget_warning') {
+      final percentage = spentAmount / budgetAmount * 100;
       final uniqueKey = 'budget_warning_${budgetId}_$monthKey';
 
       await createNotification(
@@ -203,7 +231,10 @@ class NotificationService {
     required double projectedAmount,
     required double budgetAmount,
   }) async {
-    if (budgetAmount <= 0 || projectedAmount <= budgetAmount) {
+    if (!shouldNotifyProjectedOverspending(
+      projectedAmount: projectedAmount,
+      budgetAmount: budgetAmount,
+    )) {
       return;
     }
 
@@ -225,6 +256,7 @@ class NotificationService {
   // SAVINGS RECOMMENDATION
 
   Future<void> savingsRecommendation({
+    required String goalId,
     required String goalName,
     required double amount,
   }) async {
@@ -241,7 +273,8 @@ class NotificationService {
       message:
           'You could potentially save \$${amount.toStringAsFixed(2)} toward $goalName.',
       type: 'savings_recommendation',
-      uniqueKey: 'savings_recommendation_${goalName}_$monthKey',
+      referenceId: goalId,
+      uniqueKey: 'savings_recommendation_${goalId}_$monthKey',
     );
   }
 

@@ -11,9 +11,19 @@ class CalculationService {
 
   // Calculate remaining budget
   static double calculateBudgetRemaining(double budget, double spent) {
-    final remaining = budget - spent;
+    return budget - spent;
+  }
 
-    return remaining < 0 ? 0 : remaining;
+  static double calculateProjectedMonthEndSpending({
+    required double spent,
+    required DateTime now,
+  }) {
+    if (spent <= 0 || now.day <= 0) {
+      return 0;
+    }
+
+    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    return spent / now.day * daysInMonth;
   }
 
   // Calculate savings goal progress percentage
