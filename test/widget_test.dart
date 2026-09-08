@@ -16,5 +16,6 @@ void main() {
     expect(find.text('Welcome to Student Financial Assistant'), findsOneWidget);
     expect(find.text('Login'), findsOneWidget);
     expect(find.text('Create Account'), findsOneWidget);
+    expect(find.text('Manage Budget'), findsOneWidget);
   });
 }

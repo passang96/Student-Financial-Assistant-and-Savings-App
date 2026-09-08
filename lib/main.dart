@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'screens/budget_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,6 +82,23 @@ class HomePage extends StatelessWidget {
                   // Registration functionality will be connected here
                 },
                 child: const Text('Create Account'),
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (context) => const BudgetScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.account_balance_wallet_outlined),
+                label: const Text('Manage Budget'),
               ),
             ),
           ],
