@@ -1,8 +1,5 @@
-/// A single savings goal (e.g. "New Laptop", "Emergency Fund").
-///
-/// This is a plain Dart model for the frontend to work with. Passang will
-/// connect this to Firestore in Round 4 — see the TODOs in savings_screen.dart
-/// for where the real read/write calls should replace the mock data.
+import 'dart:math' as math;
+
 class SavingsGoal {
   SavingsGoal({
     required this.id,
@@ -23,11 +20,48 @@ class SavingsGoal {
   final String icon;
 
   double get progress =>
-      targetAmount <= 0 ? 0 : (savedAmount / targetAmount).clamp(0, 1);
+      targetAmount <= 0 ? 0 : (savedAmount / targetAmount).clamp(0.0, 1.0);
 
   bool get isAchieved => savedAmount >= targetAmount;
 
   int get daysRemaining => targetDate.difference(DateTime.now()).inDays;
+
+  double get remainingAmount {
+    final double diff = targetAmount - savedAmount;
+    return diff < 0 ? 0 : diff;
+  }
+
+  /// True when the target date has passed but the goal isn't funded yet.
+  /// The recommendation should not be shown in this case since a weekly
+  /// or monthly split no longer makes sense.
+  bool get isOverdue => !isAchieved && daysRemaining <= 0;
+
+  /// Whether a Recommended Savings Plan can be shown for this goal.
+  bool get canShowRecommendation => !isAchieved && !isOverdue;
+
+  /// Suggested amount to save per week to hit the target on time.
+  /// Always rounds up so following the plan slightly over-delivers
+  /// rather than falling short by a few cents.
+  double get recommendedWeeklyAmount {
+    if (!canShowRecommendation) {
+      return 0;
+    }
+
+    final int weeksLeft = math.max(1, (daysRemaining / 7).ceil());
+
+    return (remainingAmount / weeksLeft * 100).ceil() / 100;
+  }
+
+  /// Suggested amount to save per month to hit the target on time.
+  double get recommendedMonthlyAmount {
+    if (!canShowRecommendation) {
+      return 0;
+    }
+
+    final int monthsLeft = math.max(1, (daysRemaining / 30).ceil());
+
+    return (remainingAmount / monthsLeft * 100).ceil() / 100;
+  }
 
   SavingsGoal copyWith({
     String? title,
@@ -49,7 +83,6 @@ class SavingsGoal {
   }
 }
 
-/// A single deposit toward a goal.
 class GoalContribution {
   GoalContribution({required this.amount, required this.date, this.note});
 
