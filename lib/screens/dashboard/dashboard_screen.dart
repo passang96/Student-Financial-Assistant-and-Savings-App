@@ -401,20 +401,18 @@ class DashboardScreen extends StatelessWidget {
               totalSavings += (data['currentAmount'] as num?)?.toDouble() ?? 0;
             }
 
-            final availableFunds = currentNetBalance - totalSavings;
-
-            return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: budgetService.getCurrentMonthBudget(),
-              builder: (context, budgetSnapshot) {
-                if (budgetSnapshot.hasError) {
+            return FutureBuilder<double>(
+              future: goalService.getCurrentMonthContributions(),
+              builder: (context, monthlySavingsSnapshot) {
+                if (monthlySavingsSnapshot.hasError) {
                   return Scaffold(
                     backgroundColor: const Color(0xFFF8FAFC),
                     body: Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
                         child: Text(
-                          'Could not load budget information.\n\n'
-                          '${budgetSnapshot.error}',
+                          'Could not load monthly savings.\n\n'
+                          '${monthlySavingsSnapshot.error}',
                           textAlign: TextAlign.center,
                           style: const TextStyle(color: Colors.red),
                         ),
@@ -423,198 +421,241 @@ class DashboardScreen extends StatelessWidget {
                   );
                 }
 
-                final budgetData = budgetSnapshot.data?.data() ?? {};
-
-                final bool hasBudget =
-                    budgetSnapshot.data?.exists == true &&
-                    (budgetData['totalBudget'] as num?) != null &&
-                    ((budgetData['totalBudget'] as num).toDouble() > 0);
-
-                final double totalBudget = hasBudget
-                    ? (budgetData['totalBudget'] as num).toDouble()
-                    : 0;
-
-                final healthResult = financialHealthService
-                    .calculateHealthScore(
-                      income: currentIncome,
-                      expenses: currentExpenses,
-                      monthlyBudget: totalBudget,
-                      totalSavings: totalSavings,
-                      savingsGoalCount: savingsGoals.length,
-                    );
-
-                final SafeSpendingResult safeSpendingResult;
-
-                if (hasBudget) {
-                  safeSpendingResult = safeSpendingService
-                      .calculateSafeSpending(
-                        income: currentIncome,
-                        expenses: currentExpenses,
-                        savings: totalSavings,
-                        monthlyBudget: totalBudget,
-                        recentDailyExpenses: recentDailyExpenses,
-                      );
-                } else {
-                  safeSpendingResult = SafeSpendingResult(
-                    safeToSpendToday: 0,
-                    availableFunds: availableFunds,
-                    remainingBudget: 0,
-                    daysRemaining:
-                        DateTime(now.year, now.month + 1, 0).day - now.day + 1,
-                    recentDailyAverage: recentDailyExpenses.isEmpty
-                        ? 0
-                        : recentDailyExpenses.reduce((a, b) => a + b) /
-                              recentDailyExpenses.length,
-                    safetyBufferPercent: 20,
-                    status: 'Set Budget',
-                    message:
-                        'Set a monthly budget to receive a personalised Safe to Spend Today estimate.',
-                    reasons: const [
-                      'Safe spending needs a spending limit so the app knows how much of your money should remain available for the rest of the month.',
-                    ],
+                if (!monthlySavingsSnapshot.hasData) {
+                  return const Scaffold(
+                    backgroundColor: Color(0xFFF8FAFC),
+                    body: Center(child: CircularProgressIndicator()),
                   );
                 }
 
-                final recentTransactions = [...allTransactions];
+                final double currentMonthSavings =
+                    monthlySavingsSnapshot.data ?? 0;
 
-                recentTransactions.sort((a, b) {
-                  final aDate = a.data()['date'];
+                final availableFunds = currentNetBalance - currentMonthSavings;
 
-                  final bDate = b.data()['date'];
-
-                  if (aDate is! Timestamp || bDate is! Timestamp) {
-                    return 0;
-                  }
-
-                  return bDate.compareTo(aDate);
-                });
-
-                final displayedTransactions = recentTransactions
-                    .take(5)
-                    .toList();
-
-                return Scaffold(
-                  backgroundColor: const Color(0xFFF8FAFC),
-                  body: SafeArea(
-                    child: Column(
-                      children: [
-                        _buildHeader(context, displayName),
-
-                        Expanded(
-                          child: Container(
-                            width: double.infinity,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(26),
-                              ),
-                            ),
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.fromLTRB(
-                                18,
-                                16,
-                                18,
-                                20,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildOverviewHeader(),
-
-                                  const SizedBox(height: 12),
-
-                                  _buildOverviewCards(
-                                    context: context,
-                                    currentNetBalance: currentNetBalance,
-                                    previousNetBalance: previousNetBalance,
-                                    income: currentIncome,
-                                    previousIncome: previousIncome,
-                                    expenses: currentExpenses,
-                                    previousExpenses: previousExpenses,
-                                    totalSavings: totalSavings,
-                                    savingsGoals: savingsGoals,
-                                    availableFunds: availableFunds,
-                                    currentTransactions: currentTransactions,
-                                  ),
-
-                                  const SizedBox(height: 22),
-
-                                  _buildSafeSpendingCard(
-                                    context,
-                                    safeSpendingResult,
-                                    hasBudget: hasBudget,
-                                    monthlyBudget: totalBudget,
-                                  ),
-
-                                  const SizedBox(height: 22),
-
-                                  _buildFinancialHealthCard(
-                                    context,
-                                    healthResult,
-                                  ),
-
-                                  const SizedBox(height: 22),
-
-                                  _buildTransactionsHeader(context),
-
-                                  const SizedBox(height: 12),
-
-                                  if (displayedTransactions.isEmpty)
-                                    _buildEmptyTransactions()
-                                  else
-                                    ...displayedTransactions.map((document) {
-                                      final data = document.data();
-
-                                      final String type =
-                                          data['type']?.toString() ?? '';
-
-                                      final String category =
-                                          data['category']?.toString() ??
-                                          'Other';
-
-                                      final String notes =
-                                          data['notes']?.toString().trim() ??
-                                          '';
-
-                                      final double amount =
-                                          (data['amount'] as num?)
-                                              ?.toDouble() ??
-                                          0;
-
-                                      final rawDate = data['date'];
-
-                                      final DateTime date = rawDate is Timestamp
-                                          ? rawDate.toDate()
-                                          : DateTime.now();
-
-                                      return Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 10,
-                                        ),
-                                        child: _buildTransaction(
-                                          icon: _transactionIcon(
-                                            category,
-                                            type,
-                                          ),
-                                          title: notes.isNotEmpty
-                                              ? notes
-                                              : category,
-                                          category: category,
-                                          amount:
-                                              '${type == 'income' ? '+' : '-'}${_money(amount)}',
-                                          date: _transactionDate(date),
-                                          isIncome: type == 'income',
-                                        ),
-                                      );
-                                    }),
-                                ],
-                              ),
+                return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: budgetService.getCurrentMonthBudget(),
+                  builder: (context, budgetSnapshot) {
+                    if (budgetSnapshot.hasError) {
+                      return Scaffold(
+                        backgroundColor: const Color(0xFFF8FAFC),
+                        body: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              'Could not load budget information.\n\n'
+                              '${budgetSnapshot.error}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.red),
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                      );
+                    }
+
+                    final budgetData = budgetSnapshot.data?.data() ?? {};
+
+                    final bool hasBudget =
+                        budgetSnapshot.data?.exists == true &&
+                        (budgetData['totalBudget'] as num?) != null &&
+                        ((budgetData['totalBudget'] as num).toDouble() > 0);
+
+                    final double totalBudget = hasBudget
+                        ? (budgetData['totalBudget'] as num).toDouble()
+                        : 0;
+
+                    final healthResult = financialHealthService
+                        .calculateHealthScore(
+                          income: currentIncome,
+                          expenses: currentExpenses,
+                          monthlyBudget: totalBudget,
+                          currentMonthSavings: currentMonthSavings,
+                          savingsGoalCount: savingsGoals.length,
+                        );
+
+                    final SafeSpendingResult safeSpendingResult;
+
+                    if (hasBudget) {
+                      safeSpendingResult = safeSpendingService
+                          .calculateSafeSpending(
+                            income: currentIncome,
+                            expenses: currentExpenses,
+                            savings: currentMonthSavings,
+                            monthlyBudget: totalBudget,
+                            recentDailyExpenses: recentDailyExpenses,
+                          );
+                    } else {
+                      safeSpendingResult = SafeSpendingResult(
+                        safeToSpendToday: 0,
+                        availableFunds: availableFunds,
+                        remainingBudget: 0,
+                        daysRemaining:
+                            DateTime(now.year, now.month + 1, 0).day -
+                            now.day +
+                            1,
+                        recentDailyAverage: recentDailyExpenses.isEmpty
+                            ? 0
+                            : recentDailyExpenses.reduce((a, b) => a + b) /
+                                  recentDailyExpenses.length,
+                        safetyBufferPercent: 20,
+                        status: 'Set Budget',
+                        message:
+                            'Set a monthly budget to receive a personalised Safe to Spend Today estimate.',
+                        reasons: const [
+                          'Safe spending needs a spending limit so the app knows how much of your money should remain available for the rest of the month.',
+                        ],
+                      );
+                    }
+
+                    final recentTransactions = [...allTransactions];
+
+                    recentTransactions.sort((a, b) {
+                      final aDate = a.data()['date'];
+
+                      final bDate = b.data()['date'];
+
+                      if (aDate is! Timestamp || bDate is! Timestamp) {
+                        return 0;
+                      }
+
+                      return bDate.compareTo(aDate);
+                    });
+
+                    final displayedTransactions = recentTransactions
+                        .take(5)
+                        .toList();
+
+                    return Scaffold(
+                      backgroundColor: const Color(0xFFF8FAFC),
+                      body: SafeArea(
+                        child: Column(
+                          children: [
+                            _buildHeader(context, displayName),
+
+                            Expanded(
+                              child: Container(
+                                width: double.infinity,
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.vertical(
+                                    top: Radius.circular(26),
+                                  ),
+                                ),
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    18,
+                                    16,
+                                    18,
+                                    20,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildOverviewHeader(),
+
+                                      const SizedBox(height: 12),
+
+                                      _buildOverviewCards(
+                                        context: context,
+                                        currentNetBalance: currentNetBalance,
+                                        previousNetBalance: previousNetBalance,
+                                        income: currentIncome,
+                                        previousIncome: previousIncome,
+                                        expenses: currentExpenses,
+                                        previousExpenses: previousExpenses,
+                                        totalSavings: totalSavings,
+                                        savingsGoals: savingsGoals,
+                                        availableFunds: availableFunds,
+                                        currentTransactions:
+                                            currentTransactions,
+                                      ),
+
+                                      const SizedBox(height: 22),
+
+                                      _buildSafeSpendingCard(
+                                        context,
+                                        safeSpendingResult,
+                                        hasBudget: hasBudget,
+                                        monthlyBudget: totalBudget,
+                                      ),
+
+                                      const SizedBox(height: 22),
+
+                                      _buildFinancialHealthCard(
+                                        context,
+                                        healthResult,
+                                      ),
+
+                                      const SizedBox(height: 22),
+
+                                      _buildTransactionsHeader(context),
+
+                                      const SizedBox(height: 12),
+
+                                      if (displayedTransactions.isEmpty)
+                                        _buildEmptyTransactions()
+                                      else
+                                        ...displayedTransactions.map((
+                                          document,
+                                        ) {
+                                          final data = document.data();
+
+                                          final String type =
+                                              data['type']?.toString() ?? '';
+
+                                          final String category =
+                                              data['category']?.toString() ??
+                                              'Other';
+
+                                          final String notes =
+                                              data['notes']
+                                                  ?.toString()
+                                                  .trim() ??
+                                              '';
+
+                                          final double amount =
+                                              (data['amount'] as num?)
+                                                  ?.toDouble() ??
+                                              0;
+
+                                          final rawDate = data['date'];
+
+                                          final DateTime date =
+                                              rawDate is Timestamp
+                                              ? rawDate.toDate()
+                                              : DateTime.now();
+
+                                          return Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: 10,
+                                            ),
+                                            child: _buildTransaction(
+                                              icon: _transactionIcon(
+                                                category,
+                                                type,
+                                              ),
+                                              title: notes.isNotEmpty
+                                                  ? notes
+                                                  : category,
+                                              category: category,
+                                              amount:
+                                                  '${type == 'income' ? '+' : '-'}${_money(amount)}',
+                                              date: _transactionDate(date),
+                                              isIncome: type == 'income',
+                                            ),
+                                          );
+                                        }),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             );

@@ -22,14 +22,8 @@ class GoalService {
     required double targetAmount,
     required DateTime targetDate,
   }) async {
-    if (uid == null) {
-      throw Exception('User not logged in');
-    }
-
-    if (name.trim().isEmpty) {
-      throw Exception('Goal name cannot be empty');
-    }
-
+    if (uid == null) throw Exception('User not logged in');
+    if (name.trim().isEmpty) throw Exception('Goal name cannot be empty');
     if (targetAmount <= 0) {
       throw Exception('Target amount must be greater than 0');
     }
@@ -48,17 +42,13 @@ class GoalService {
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> getGoals() {
-    if (uid == null) {
-      throw Exception('User not logged in');
-    }
+    if (uid == null) throw Exception('User not logged in');
 
     return goals.orderBy('createdAt', descending: true).snapshots();
   }
 
   Future<DocumentSnapshot<Map<String, dynamic>>> getGoal(String goalId) async {
-    if (uid == null) {
-      throw Exception('User not logged in');
-    }
+    if (uid == null) throw Exception('User not logged in');
 
     return await goals.doc(goalId).get();
   }
@@ -69,14 +59,8 @@ class GoalService {
     required double targetAmount,
     required DateTime targetDate,
   }) async {
-    if (uid == null) {
-      throw Exception('User not logged in');
-    }
-
-    if (name.trim().isEmpty) {
-      throw Exception('Goal name cannot be empty');
-    }
-
+    if (uid == null) throw Exception('User not logged in');
+    if (name.trim().isEmpty) throw Exception('Goal name cannot be empty');
     if (targetAmount <= 0) {
       throw Exception('Target amount must be greater than 0');
     }
@@ -131,9 +115,7 @@ class GoalService {
   }
 
   Future<void> deleteGoal(String goalId) async {
-    if (uid == null) {
-      throw Exception('User not logged in');
-    }
+    if (uid == null) throw Exception('User not logged in');
 
     await goals.doc(goalId).delete();
   }
@@ -142,9 +124,7 @@ class GoalService {
     required String goalId,
     required double contribution,
   }) async {
-    if (uid == null) {
-      throw Exception('User not logged in');
-    }
+    if (uid == null) throw Exception('User not logged in');
 
     if (contribution <= 0) {
       throw Exception('Contribution must be greater than 0');
@@ -230,46 +210,39 @@ class GoalService {
         .snapshots();
   }
 
-  double calculateProgress({
-    required double currentAmount,
-    required double targetAmount,
-  }) {
-    if (targetAmount <= 0) {
-      return 0;
+  Future<double> getCurrentMonthContributions() async {
+    if (uid == null) {
+      throw Exception('User not logged in');
     }
 
-    double progress = (currentAmount / targetAmount) * 100;
+    final now = DateTime.now();
 
-    if (progress > 100) {
-      progress = 100;
+    final startOfMonth = DateTime(now.year, now.month, 1);
+
+    final startOfNextMonth = DateTime(now.year, now.month + 1, 1);
+
+    final goalSnapshot = await goals.get();
+
+    double total = 0;
+
+    for (final goal in goalSnapshot.docs) {
+      final contributionSnapshot = await goals
+          .doc(goal.id)
+          .collection('contributions')
+          .where(
+            'date',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth),
+          )
+          .where('date', isLessThan: Timestamp.fromDate(startOfNextMonth))
+          .get();
+
+      for (final contribution in contributionSnapshot.docs) {
+        total += (contribution.data()['amount'] as num?)?.toDouble() ?? 0;
+      }
     }
 
-    return progress;
+    return total;
   }
-
-  double calculateRemaining({
-    required double currentAmount,
-    required double targetAmount,
-  }) {
-    final double remaining = targetAmount - currentAmount;
-
-    if (remaining < 0) {
-      return 0;
-    }
-
-    return remaining;
-  }
-
-  bool isGoalAchieved({
-    required double currentAmount,
-    required double targetAmount,
-  }) {
-    return currentAmount >= targetAmount;
-  }
-
-  // ------------------------------------------------------------
-  // SAVINGS RECOMMENDATION
-  // ------------------------------------------------------------
 
   double calculateWeeklyRecommendation({
     required double currentAmount,
@@ -336,9 +309,45 @@ class GoalService {
       return remaining;
     }
 
-    // 30.44 is the average number of days in a Gregorian month.
     final monthsRemaining = daysRemaining / 30.44;
 
     return remaining / monthsRemaining;
+  }
+
+  double calculateProgress({
+    required double currentAmount,
+    required double targetAmount,
+  }) {
+    if (targetAmount <= 0) {
+      return 0;
+    }
+
+    double progress = (currentAmount / targetAmount) * 100;
+
+    if (progress > 100) {
+      progress = 100;
+    }
+
+    return progress;
+  }
+
+  double calculateRemaining({
+    required double currentAmount,
+    required double targetAmount,
+  }) {
+    final double remaining = targetAmount - currentAmount;
+
+    if (remaining < 0) {
+      return 0;
+    }
+
+    return remaining;
+  }
+
+  bool isGoalAchieved({
+    required double currentAmount,
+    required double targetAmount,
+  }) {
+    return currentAmount >= targetAmount;
   }
 }

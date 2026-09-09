@@ -41,7 +41,7 @@ class FinancialHealthService {
     required double income,
     required double expenses,
     required double monthlyBudget,
-    required double totalSavings,
+    required double currentMonthSavings,
     required int savingsGoalCount,
   }) {
     final List<FinancialHealthComponent> components = [];
@@ -49,7 +49,8 @@ class FinancialHealthService {
     final List<String> recommendations = [];
 
     final double netBalance = income - expenses;
-    final double availableFunds = netBalance - totalSavings;
+
+    final double availableFunds = netBalance - currentMonthSavings;
 
     int totalScore = 0;
 
@@ -162,6 +163,7 @@ class FinancialHealthService {
       );
     } else {
       final double budgetRatio = expenses / monthlyBudget;
+
       final double budgetPercentage = budgetRatio * 100;
 
       if (budgetRatio <= 0.50) {
@@ -228,6 +230,9 @@ class FinancialHealthService {
     // ============================================================
     // 3. AVAILABLE FUNDS / FINANCIAL FLEXIBILITY
     // Maximum: 25 points
+    //
+    // Uses CURRENT-MONTH savings contributions rather than
+    // lifetime savings-goal balances.
     // ============================================================
 
     int availableFundsScore = 0;
@@ -238,26 +243,27 @@ class FinancialHealthService {
           'Available funds cannot be evaluated properly because no income is recorded.';
     } else {
       final double availableRatio = availableFunds / income;
+
       final double availablePercentage = availableRatio * 100;
 
       if (availableFunds < 0) {
         availableFundsScore = 0;
 
         availableFundsExplanation =
-            'Your savings allocations are greater than the money remaining after expenses.';
+            'Your current-month expenses and savings contributions are greater than your recorded income.';
 
         reasons.add(
-          'You currently have negative available funds after expenses and savings allocations.',
+          'You currently have negative available funds after this month\'s expenses and savings contributions.',
         );
 
         recommendations.add(
-          'Avoid allocating additional money to savings until your available funds return to a positive level.',
+          'Reduce spending and avoid increasing savings contributions until your available funds return to a positive level.',
         );
       } else if (availableRatio >= 0.30) {
         availableFundsScore = 25;
 
         availableFundsExplanation =
-            '${availablePercentage.toStringAsFixed(1)}% of your income remains available after expenses and savings.';
+            '${availablePercentage.toStringAsFixed(1)}% of your income remains available after this month\'s expenses and savings contributions.';
 
         reasons.add('You have strong financial flexibility remaining.');
       } else if (availableRatio >= 0.20) {
@@ -289,7 +295,7 @@ class FinancialHealthService {
         );
 
         recommendations.add(
-          'Reduce discretionary expenses or avoid increasing savings allocations until more funds are available.',
+          'Reduce discretionary expenses or avoid increasing savings contributions until more funds are available.',
         );
       } else {
         availableFundsScore = 3;
@@ -319,6 +325,8 @@ class FinancialHealthService {
     // ============================================================
     // 4. SAVINGS BEHAVIOUR
     // Maximum: 15 points
+    //
+    // Uses savings contributions made during the CURRENT MONTH.
     // ============================================================
 
     int savingsScore = 0;
@@ -332,76 +340,83 @@ class FinancialHealthService {
       recommendations.add(
         'Create at least one realistic savings goal and begin with small regular contributions.',
       );
-    } else if (totalSavings <= 0) {
+    } else if (currentMonthSavings <= 0) {
       savingsScore = 3;
 
       savingsExplanation =
-          'Savings goals exist, but no contributions have been recorded yet.';
+          'Savings goals exist, but no contributions have been recorded this month.';
+
+      reasons.add(
+        'You have savings goals but have not contributed to them during the current month.',
+      );
 
       recommendations.add(
-        'Start contributing a small amount toward one of your savings goals.',
+        'Consider making a small, affordable contribution toward one of your savings goals.',
+      );
+    } else if (income <= 0) {
+      savingsScore = 3;
+
+      savingsExplanation =
+          'Savings contributions were recorded, but no current-month income is available for comparison.';
+
+      reasons.add(
+        'The app cannot fully assess your savings rate until income is recorded.',
       );
     } else if (netBalance <= 0) {
       savingsScore = 3;
 
       savingsExplanation =
-          'You have savings recorded, but current expenses leave no positive net balance.';
+          'You contributed to savings this month, but current expenses exceed or fully use your income.';
 
       reasons.add(
-        'Your spending currently leaves limited room for additional saving.',
+        'Your current spending leaves limited room for sustainable saving.',
       );
 
       recommendations.add(
-        'Stabilise your expenses before increasing savings contributions.',
+        'Stabilise your monthly expenses before increasing savings contributions.',
       );
     } else {
-      final double allocationRatio = totalSavings / netBalance;
+      final double savingsRate = currentMonthSavings / income;
 
-      final double allocationPercentage = allocationRatio * 100;
+      final double savingsPercentage = savingsRate * 100;
 
-      if (allocationRatio >= 0.10 && allocationRatio <= 0.50) {
+      if (savingsRate >= 0.20) {
         savingsScore = 15;
 
         savingsExplanation =
-            '${allocationPercentage.toStringAsFixed(1)}% of your net balance is allocated to savings.';
+            'You saved ${savingsPercentage.toStringAsFixed(1)}% of your recorded income this month.';
 
         reasons.add(
-          'Your savings allocation is currently balanced with your remaining funds.',
+          'You are currently making strong progress toward your savings goals.',
         );
-      } else if (allocationRatio <= 0.70) {
+      } else if (savingsRate >= 0.10) {
         savingsScore = 12;
 
         savingsExplanation =
-            '${allocationPercentage.toStringAsFixed(1)}% of your net balance is allocated to savings.';
+            'You saved ${savingsPercentage.toStringAsFixed(1)}% of your recorded income this month.';
 
-        reasons.add(
-          'You are making strong savings progress while retaining some flexibility.',
-        );
-      } else if (allocationRatio <= 0.90) {
+        reasons.add('You are maintaining a healthy monthly savings rate.');
+      } else if (savingsRate >= 0.05) {
         savingsScore = 8;
 
         savingsExplanation =
-            '${allocationPercentage.toStringAsFixed(1)}% of your net balance is allocated to savings.';
+            'You saved ${savingsPercentage.toStringAsFixed(1)}% of your recorded income this month.';
 
-        reasons.add(
-          'A large share of your remaining money has already been allocated to savings.',
-        );
+        reasons.add('You are making progress toward your savings goals.');
 
         recommendations.add(
-          'Consider keeping a larger portion of your net balance available for unexpected expenses.',
+          'Increase your savings contribution gradually when your budget allows.',
         );
       } else {
-        savingsScore = 4;
+        savingsScore = 5;
 
         savingsExplanation =
-            '${allocationPercentage.toStringAsFixed(1)}% of your net balance is allocated to savings.';
+            'You saved ${savingsPercentage.toStringAsFixed(1)}% of your recorded income this month.';
 
-        reasons.add(
-          'Almost all of your remaining balance is allocated to savings.',
-        );
+        reasons.add('Your current savings rate is relatively small.');
 
         recommendations.add(
-          'Avoid allocating nearly all remaining funds to savings unless you already have enough money available for essential and unexpected costs.',
+          'Consider making small regular savings contributions when your available funds allow.',
         );
       }
     }
@@ -504,7 +519,7 @@ class FinancialHealthService {
 
     if (availableFunds < 0) {
       topRecommendation =
-          'Restore positive available funds before increasing savings contributions.';
+          'Restore positive available funds by reducing spending before increasing savings contributions.';
     } else if (income > 0 && availableFunds / income < 0.10) {
       final double desiredAvailable = income * 0.20;
 
@@ -532,10 +547,6 @@ class FinancialHealthService {
 
     // ============================================================
     // POTENTIAL SCORE
-    //
-    // This is deliberately conservative.
-    // It estimates possible improvement if the user addresses
-    // the main weak areas. It is not a guaranteed future score.
     // ============================================================
 
     int potentialScore = totalScore;
