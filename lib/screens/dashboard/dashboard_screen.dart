@@ -3,7 +3,7 @@ import '../budget/budget_screen.dart';
 import '../transactions/add_expense_screen.dart';
 import '../transactions/add_income_screen.dart';
 import '../transactions/transaction_history_screen.dart';
-
+import '../reports/reports_screen.dart';
 class DashboardScreen extends StatelessWidget {
   final String userName;
   final double balance;
@@ -254,6 +254,15 @@ class DashboardScreen extends StatelessWidget {
                             const BudgetScreen(),
                           ),
                         ),
+                        _QuickActionButton(
+  title: 'Reports',
+  icon: Icons.bar_chart,
+  colour: Colors.purple,
+  onTap: () => _openScreen(
+    context,
+    const ReportsScreen(),
+  ),
+),
                       ],
                     ),
                   ),

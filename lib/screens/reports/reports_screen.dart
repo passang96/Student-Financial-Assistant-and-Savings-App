@@ -102,7 +102,13 @@ const SizedBox(height: 20),
                 Expanded(
                   child: _buildSummaryCard(
                     title: 'Income',
-                    amount: 5000,
+                    amount: selectedPeriod == 'Weekly'
+    ? 1200
+    : selectedPeriod == 'Fortnightly'
+        ? 2400
+        : selectedPeriod == 'Monthly'
+            ? 5000
+            : 5000,
                     comparison: 8,
                     icon: Icons.arrow_downward,
                     color: Colors.green,
@@ -112,7 +118,11 @@ const SizedBox(height: 20),
                 Expanded(
                   child: _buildSummaryCard(
                     title: 'Expenses',
-                    amount: 2350,
+                    amount: selectedPeriod == 'Weekly'
+    ? 600
+    : selectedPeriod == 'Fortnightly'
+        ? 1200
+        : 2350,
                     comparison: -5,
                     icon: Icons.arrow_upward,
                     color: Colors.red,
@@ -127,7 +137,11 @@ const SizedBox(height: 20),
                 Expanded(
                   child: _buildSummaryCard(
                     title: 'Savings',
-                    amount: 2650,
+                    amount: selectedPeriod == 'Weekly'
+    ? 600
+    : selectedPeriod == 'Fortnightly'
+        ? 1200
+        : 2650,
                     comparison: 12,
                     icon: Icons.savings_outlined,
                     color: Colors.blue,
@@ -137,7 +151,11 @@ const SizedBox(height: 20),
                 Expanded(
                   child: _buildSummaryCard(
                     title: 'Savings Rate',
-                    amount: 53,
+                   amount: selectedPeriod == 'Weekly'
+    ? 50
+    : selectedPeriod == 'Fortnightly'
+        ? 50
+        : 53,
                     comparison: 6,
                     icon: Icons.percent,
                     color: Colors.purple,
