@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:student_financial_assistant/services/budget_service.dart';
 import 'package:student_financial_assistant/services/calculation_service.dart';
 import 'package:student_financial_assistant/services/notification_service.dart';
 
@@ -99,6 +100,68 @@ void main() {
         ),
         isFalse,
       );
+    });
+  });
+
+  group('passang checklist coverage', () {
+    test('keeps remaining budget equal to budget minus current expenses', () {
+      expect(CalculationService.calculateBudgetRemaining(500, 180), 320);
+      expect(CalculationService.calculateBudgetRemaining(200, 260), -60);
+    });
+
+    test('classifies warning and exceeded states correctly', () {
+      final warning = BudgetStatus(
+        budget: 100,
+        spent: 80,
+        remaining: 20,
+        projectedMonthEnd: 90,
+      );
+
+      final exceeded = BudgetStatus(
+        budget: 100,
+        spent: 100,
+        remaining: 0,
+        projectedMonthEnd: 120,
+      );
+
+      expect(warning.percentage, 80);
+      expect(warning.isWarning, isTrue);
+      expect(warning.isExceeded, isFalse);
+
+      expect(exceeded.percentage, 100);
+      expect(exceeded.isWarning, isFalse);
+      expect(exceeded.isExceeded, isTrue);
+    });
+
+    test('keeps empty or missing data safe', () {
+      expect(
+        CalculationService.calculateProjectedMonthEndSpending(
+          spent: 0,
+          now: DateTime(2026, 9, 8),
+        ),
+        0,
+      );
+
+      expect(
+        NotificationService.budgetNotificationType(
+          budgetAmount: 0,
+          spentAmount: 25,
+        ),
+        isNull,
+      );
+
+      expect(
+        NotificationService.shouldNotifyProjectedOverspending(
+          projectedAmount: 0,
+          budgetAmount: 0,
+        ),
+        isFalse,
+      );
+    });
+
+    test('uses month keys consistently for budget tracking', () {
+      expect(BudgetService.monthKey(DateTime(2026, 9, 14)), '2026-09');
+      expect(BudgetService.monthKey(DateTime(2027, 1, 5)), '2027-01');
     });
   });
 }
