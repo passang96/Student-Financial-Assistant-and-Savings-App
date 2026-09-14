@@ -20,22 +20,22 @@ class _BudgetScreenState extends State<BudgetScreen> {
   final CategoryService _categoryService = CategoryService();
   final NotificationService _notificationService = NotificationService();
 
-  bool _initialising = true;
-
   /// Prevents the same notification check from running repeatedly
   /// while this screen is rebuilding.
   final Set<String> _checkedNotificationStates = {};
 
-  final Map<String, double> _defaultCategoryBudgets = {
-    'Rent': 800,
-    'Food': 600,
-    'Transport': 400,
-    'Bills': 300,
-    'Shopping': 500,
-    'Education/Study': 300,
-    'Entertainment': 200,
-    'Other': 200,
-  };
+  /// These are only used to provide the standard category names.
+  /// They are NOT used as automatic budget amounts.
+  final List<String> _defaultCategories = [
+    'Rent',
+    'Food',
+    'Transport',
+    'Bills',
+    'Shopping',
+    'Education/Study',
+    'Entertainment',
+    'Other',
+  ];
 
   final Map<String, IconData> _defaultIcons = {
     'Rent': Icons.home_outlined,
@@ -48,42 +48,10 @@ class _BudgetScreenState extends State<BudgetScreen> {
     'Other': Icons.category_outlined,
   };
 
-  @override
-  void initState() {
-    super.initState();
-    _initialiseCurrentMonthBudget();
-  }
-
-  Future<void> _initialiseCurrentMonthBudget() async {
-    try {
-      final existing = await _budgetService.getCurrentMonthBudgetOnce();
-
-      if (existing.isEmpty) {
-        await _budgetService.saveMonthlyBudget(totalBudget: 2000);
-
-        await _budgetService.saveAllCategoryBudgets(_defaultCategoryBudgets);
-      } else {
-        if (existing['totalBudget'] == null) {
-          await _budgetService.saveMonthlyBudget(totalBudget: 2000);
-        }
-
-        if (existing['categoryBudgets'] == null) {
-          await _budgetService.saveAllCategoryBudgets(_defaultCategoryBudgets);
-        }
-      }
-    } catch (e) {
-      debugPrint('Could not initialise budget: $e');
-    }
-
-    if (mounted) {
-      setState(() {
-        _initialising = false;
-      });
-    }
-  }
-
   Future<void> _editMonthlyBudget(double currentBudget) async {
-    String budgetText = currentBudget.toStringAsFixed(0);
+    String budgetText = currentBudget > 0
+        ? currentBudget.toStringAsFixed(0)
+        : '';
 
     String? errorMessage;
 
@@ -97,7 +65,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
               ),
-              title: const Text('Edit Monthly Budget'),
+              title: Text(
+                currentBudget > 0
+                    ? 'Edit Monthly Budget'
+                    : 'Set Monthly Budget',
+              ),
               content: TextFormField(
                 initialValue: budgetText,
                 autofocus: true,
@@ -106,6 +78,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 ),
                 decoration: InputDecoration(
                   labelText: 'Monthly budget',
+                  hintText: 'Enter your monthly budget',
                   prefixText: '\$ ',
                   errorText: errorMessage,
                   border: const OutlineInputBorder(),
@@ -170,8 +143,12 @@ class _BudgetScreenState extends State<BudgetScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Monthly budget updated'),
+        SnackBar(
+          content: Text(
+            currentBudget > 0
+                ? 'Monthly budget updated'
+                : 'Monthly budget set successfully',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -193,7 +170,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     required String category,
     required double currentLimit,
   }) async {
-    String limitText = currentLimit.toStringAsFixed(0);
+    String limitText = currentLimit > 0 ? currentLimit.toStringAsFixed(0) : '';
 
     String? errorMessage;
 
@@ -207,7 +184,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
               ),
-              title: Text('Edit $category Budget'),
+              title: Text(
+                currentLimit > 0
+                    ? 'Edit $category Budget'
+                    : 'Set $category Budget',
+              ),
               content: TextFormField(
                 initialValue: limitText,
                 autofocus: true,
@@ -216,6 +197,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 ),
                 decoration: InputDecoration(
                   labelText: '$category monthly limit',
+                  hintText: 'Enter category limit',
                   prefixText: '\$ ',
                   errorText: errorMessage,
                   border: const OutlineInputBorder(),
@@ -286,7 +268,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('$category budget updated'),
+          content: Text(
+            newLimit > 0
+                ? '$category budget updated'
+                : '$category budget cleared',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -336,7 +322,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
     Map<String, double> categorySpending,
   ) {
     final Set<String> categories = {
-      ..._defaultCategoryBudgets.keys,
+      ..._defaultCategories,
       ...categoryBudgets.keys,
       ...categorySpending.keys,
     };
@@ -488,32 +474,38 @@ class _BudgetScreenState extends State<BudgetScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_initialising) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFF8FAFC),
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: _budgetService.getCurrentMonthBudget(),
       builder: (context, budgetSnapshot) {
         if (budgetSnapshot.hasError) {
           return Scaffold(
+            backgroundColor: const Color(0xFFF8FAFC),
             body: Center(
-              child: Text(
-                'Could not load budget.\n'
-                '${budgetSnapshot.error}',
-                textAlign: TextAlign.center,
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'Could not load budget.\n'
+                  '${budgetSnapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
+          );
+        }
+
+        if (budgetSnapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: Color(0xFFF8FAFC),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
         final budgetData = budgetSnapshot.data?.data() ?? {};
 
         final double totalBudget =
-            (budgetData['totalBudget'] as num?)?.toDouble() ?? 2000;
+            (budgetData['totalBudget'] as num?)?.toDouble() ?? 0.0;
+
+        final bool hasMonthlyBudget = totalBudget > 0;
 
         final Map<String, double> categoryBudgets = {};
 
@@ -532,18 +524,21 @@ class _BudgetScreenState extends State<BudgetScreen> {
           builder: (context, transactionSnapshot) {
             if (transactionSnapshot.hasError) {
               return Scaffold(
+                backgroundColor: const Color(0xFFF8FAFC),
                 body: Center(
-                  child: Text(
-                    'Could not load transactions.\n'
-                    '${transactionSnapshot.error}',
-                    textAlign: TextAlign.center,
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'Could not load transactions.\n'
+                      '${transactionSnapshot.error}',
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ),
               );
             }
 
-            if (!transactionSnapshot.hasData ||
-                budgetSnapshot.connectionState == ConnectionState.waiting) {
+            if (!transactionSnapshot.hasData) {
               return const Scaffold(
                 backgroundColor: Color(0xFFF8FAFC),
                 body: Center(child: CircularProgressIndicator()),
@@ -560,8 +555,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
 
             final budgetProgress = _safeProgress(totalSpent, totalBudget);
 
-            /// Check whether any real notification
-            /// needs to be created.
+            /// Notifications are only checked when
+            /// the user has actually configured a
+            /// monthly/category budget.
             _scheduleNotificationChecks(
               totalBudget: totalBudget,
               totalSpent: totalSpent,
@@ -572,6 +568,22 @@ class _BudgetScreenState extends State<BudgetScreen> {
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _categoryService.getCategories(),
               builder: (context, categorySnapshot) {
+                if (categorySnapshot.hasError) {
+                  return Scaffold(
+                    backgroundColor: const Color(0xFFF8FAFC),
+                    body: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'Could not load categories.\n'
+                          '${categorySnapshot.error}',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
                 final categories = _buildCategoryList(
                   categorySnapshot.data,
                   categoryBudgets,
@@ -605,15 +617,23 @@ class _BudgetScreenState extends State<BudgetScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _monthlyBudgetCard(
-                                    totalBudget: totalBudget,
-                                    spent: totalSpent,
-                                    remaining: remaining,
-                                    progress: budgetProgress,
-                                    onEdit: () {
-                                      _editMonthlyBudget(totalBudget);
-                                    },
-                                  ),
+                                  if (hasMonthlyBudget)
+                                    _monthlyBudgetCard(
+                                      totalBudget: totalBudget,
+                                      spent: totalSpent,
+                                      remaining: remaining,
+                                      progress: budgetProgress,
+                                      onEdit: () {
+                                        _editMonthlyBudget(totalBudget);
+                                      },
+                                    )
+                                  else
+                                    _noMonthlyBudgetCard(
+                                      totalSpent: totalSpent,
+                                      onSetBudget: () {
+                                        _editMonthlyBudget(0);
+                                      },
+                                    ),
 
                                   const SizedBox(height: 30),
 
@@ -653,16 +673,50 @@ class _BudgetScreenState extends State<BudgetScreen> {
                                     ],
                                   ),
 
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 4),
+
+                                  if (!hasMonthlyBudget)
+                                    Container(
+                                      width: double.infinity,
+                                      margin: const EdgeInsets.only(bottom: 16),
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF0FDFA),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: const Color(0xFF99F6E4),
+                                        ),
+                                      ),
+                                      child: const Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(
+                                            Icons.info_outline,
+                                            size: 20,
+                                            color: Color(0xFF0F766E),
+                                          ),
+                                          SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              'Set your monthly budget and category limits based on your own financial situation.',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                height: 1.4,
+                                                color: Color(0xFF0F766E),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
 
                                   ...categories.map((category) {
                                     final spent =
                                         categorySpending[category] ?? 0;
 
                                     final limit =
-                                        categoryBudgets[category] ??
-                                        _defaultCategoryBudgets[category] ??
-                                        0;
+                                        categoryBudgets[category] ?? 0;
 
                                     return BudgetCategoryCard(
                                       icon: _categoryIcon(category),
@@ -727,6 +781,83 @@ class _BudgetScreenState extends State<BudgetScreen> {
               color: Colors.white,
               fontSize: 28,
               fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _noMonthlyBudgetCard({
+    required double totalSpent,
+    required VoidCallback onSetBudget,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF22C7C4), Color(0xFF348CF5)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Monthly Budget',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+              Icon(Icons.account_balance_wallet_outlined, color: Colors.white),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          const Text(
+            'No budget set yet',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 27,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            totalSpent > 0
+                ? 'You have spent \$${totalSpent.toStringAsFixed(2)} this month. Set a budget to start tracking your spending.'
+                : 'Create a monthly spending limit that matches your own financial situation.',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              height: 1.4,
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: onSetBudget,
+              icon: const Icon(Icons.add),
+              label: const Text('Set Monthly Budget'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF178FAE),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
             ),
           ),
         ],
@@ -889,12 +1020,12 @@ class BudgetCategoryCard extends StatelessWidget {
               ),
 
               IconButton(
-                tooltip: 'Edit budget limit',
+                tooltip: hasBudget ? 'Edit budget limit' : 'Set budget limit',
                 onPressed: onEdit,
-                icon: const Icon(
-                  Icons.edit_outlined,
+                icon: Icon(
+                  hasBudget ? Icons.edit_outlined : Icons.add_circle_outline,
                   size: 20,
-                  color: Color(0xFF14B8B1),
+                  color: const Color(0xFF14B8B1),
                 ),
               ),
             ],
