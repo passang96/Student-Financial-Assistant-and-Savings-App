@@ -20,7 +20,21 @@ class BudgetStatus {
     required this.projectedMonthEnd,
   });
 
-  double get percentage => budget <= 0 ? 0 : spent / budget * 100;
+  double get percentage {
+    if (budget <= 0) {
+      return 0;
+    }
+
+    return (spent / budget) * 100;
+  }
+
+  bool get isWarning => percentage >= 80 && percentage < 100;
+
+  bool get isExceeded => percentage >= 100;
+
+  bool get isProjectedOverspending {
+    return budget > 0 && projectedMonthEnd > budget;
+  }
 }
 
 class BudgetService {
@@ -31,17 +45,21 @@ class BudgetService {
 
   String get userId {
     final user = _auth.currentUser;
+
     if (user == null) {
       throw Exception('User is not logged in');
     }
+
     return user.uid;
   }
 
-  CollectionReference<Map<String, dynamic>> get budgets =>
-      _firestore.collection('users').doc(userId).collection('budgets');
+  CollectionReference<Map<String, dynamic>> get budgets {
+    return _firestore.collection('users').doc(userId).collection('budgets');
+  }
 
-  static String monthKey(DateTime date) =>
-      '${date.year}-${date.month.toString().padLeft(2, '0')}';
+  static String monthKey(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}';
+  }
 
   Future<void> saveMonthlyBudget({
     required DateTime month,
@@ -49,33 +67,50 @@ class BudgetService {
     Map<String, double> categoryBudgets = const {},
   }) async {
     _validateAmount(overallAmount, 'Overall budget');
+
     for (final entry in categoryBudgets.entries) {
+      if (entry.key.trim().isEmpty) {
+        throw ArgumentError('Category name cannot be empty');
+      }
+
       _validateAmount(entry.value, 'Budget for ${entry.key}');
     }
 
     final key = monthKey(month);
+
     await budgets.doc(key).set({
       'month': key,
       'overallAmount': overallAmount,
       'categoryBudgets': categoryBudgets,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    await checkCurrentMonth(date: month);
   }
 
   Future<BudgetModel?> getMonthlyBudget(DateTime month) async {
     final snapshot = await budgets.doc(monthKey(month)).get();
+
     final data = snapshot.data();
-    return snapshot.exists && data != null
-        ? BudgetModel.fromMap(data, snapshot.id)
-        : null;
+
+    if (!snapshot.exists || data == null) {
+      return null;
+    }
+
+    return BudgetModel.fromMap(data, snapshot.id);
   }
 
   Future<BudgetStatus> getOverallStatus({DateTime? date}) async {
     final current = date ?? DateTime.now();
+
     final budget = await getMonthlyBudget(current);
+
     final transactions = await _monthTransactions(current);
+
     final spent = _expenseTotal(transactions);
-    final amount = budget?.overallAmount ?? 0;
+
+    final amount = budget?.overallAmount ?? 0.0;
+
     return _status(amount, spent, current);
   }
 
@@ -83,61 +118,74 @@ class BudgetService {
     DateTime? date,
   }) async {
     final current = date ?? DateTime.now();
+
     final budget = await getMonthlyBudget(current);
+
     if (budget == null) {
       return {};
     }
 
     final transactions = await _monthTransactions(current);
+
     final result = <String, BudgetStatus>{};
+
     for (final entry in budget.categoryBudgets.entries) {
       final spent = _expenseTotal(
-        transactions.where((transaction) => transaction.category == entry.key),
+        transactions.where(
+          (transaction) => _sameCategory(transaction.category, entry.key),
+        ),
       );
+
       result[entry.key] = _status(entry.value, spent, current);
     }
+
     return result;
   }
 
   Future<void> checkCurrentMonth({DateTime? date}) async {
     final current = date ?? DateTime.now();
+
     final budget = await getMonthlyBudget(current);
+
     if (budget == null) {
       return;
     }
 
     final transactions = await _monthTransactions(current);
+
+    final overallSpent = _expenseTotal(transactions);
+
     await _notify(
       budgetId: budget.id,
       category: 'overall',
-      status: _status(
-        budget.overallAmount,
-        _expenseTotal(transactions),
-        current,
-      ),
+      status: _status(budget.overallAmount, overallSpent, current),
+      month: current,
     );
 
     for (final entry in budget.categoryBudgets.entries) {
-      await _notify(
-        budgetId: '${budget.id}_${entry.key}',
-        category: entry.key,
-        status: _status(
-          entry.value,
-          _expenseTotal(
-            transactions.where(
-              (transaction) => transaction.category == entry.key,
-            ),
-          ),
-          current,
+      final spent = _expenseTotal(
+        transactions.where(
+          (transaction) => _sameCategory(transaction.category, entry.key),
         ),
+      );
+
+      await _notify(
+        budgetId: '${budget.id}_${_safeKey(entry.key)}',
+        category: entry.key,
+        status: _status(entry.value, spent, current),
+        month: current,
       );
     }
   }
 
   Future<List<TransactionModel>> _monthTransactions(DateTime date) {
+    final startDate = DateTime(date.year, date.month, 1);
+
+    final endDate = DateTime(date.year, date.month + 1, 0);
+
     return _transactionService.getTransactionsOnce(
-      startDate: DateTime(date.year, date.month, 1),
-      endDate: DateTime(date.year, date.month + 1, 0),
+      startDate: startDate,
+      endDate: endDate,
     );
   }
 
@@ -145,30 +193,45 @@ class BudgetService {
     required String budgetId,
     required String category,
     required BudgetStatus status,
+    required DateTime month,
   }) async {
     if (status.budget <= 0) {
       return;
     }
+
     await _notificationService.checkBudget(
       budgetId: budgetId,
       category: category,
       budgetAmount: status.budget,
       spentAmount: status.spent,
+      month: month,
     );
+
+    if (!_isCurrentMonth(month)) {
+      return;
+    }
+
+    if (status.spent >= status.budget) {
+      return;
+    }
+
     await _notificationService.projectedOverspending(
       category: category,
       projectedAmount: status.projectedMonthEnd,
       budgetAmount: status.budget,
+      month: month,
     );
   }
 
   BudgetStatus _status(double budget, double spent, DateTime date) {
+    final safeSpent = spent < 0 ? 0.0 : spent;
+
     return BudgetStatus(
       budget: budget,
-      spent: spent,
-      remaining: CalculationService.calculateBudgetRemaining(budget, spent),
+      spent: safeSpent,
+      remaining: CalculationService.calculateBudgetRemaining(budget, safeSpent),
       projectedMonthEnd: CalculationService.calculateProjectedMonthEndSpending(
-        spent: spent,
+        spent: safeSpent,
         now: date,
       ),
     );
@@ -177,12 +240,30 @@ class BudgetService {
   double _expenseTotal(Iterable<TransactionModel> transactions) {
     return transactions
         .where((transaction) => transaction.isExpense)
-        .fold(0.0, (total, transaction) => total + transaction.amount);
+        .fold<double>(0.0, (total, transaction) => total + transaction.amount);
   }
 
   void _validateAmount(double amount, String label) {
+    if (!amount.isFinite) {
+      throw ArgumentError('$label must be a valid number');
+    }
+
     if (amount <= 0) {
       throw ArgumentError('$label must be greater than 0');
     }
+  }
+
+  bool _sameCategory(String first, String second) {
+    return first.trim().toLowerCase() == second.trim().toLowerCase();
+  }
+
+  String _safeKey(String value) {
+    return value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+  }
+
+  bool _isCurrentMonth(DateTime date) {
+    final now = DateTime.now();
+
+    return date.year == now.year && date.month == now.month;
   }
 }

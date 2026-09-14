@@ -5,50 +5,43 @@ import 'notification_service.dart';
 
 class GoalService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
   final NotificationService _notificationService = NotificationService();
 
-  // Get currently logged-in user's Firebase UID
-  String? get uid => FirebaseAuth.instance.currentUser?.uid;
+  String get userId {
+    final user = _auth.currentUser;
 
-  // Reference to current user's savings goals collection
-  CollectionReference<Map<String, dynamic>> get goals {
-    if (uid == null) {
+    if (user == null) {
       throw Exception('User not logged in');
     }
 
-    return _firestore.collection('users').doc(uid).collection('savingsGoals');
+    return user.uid;
   }
 
-  // STEP 23 - CREATE A SAVINGS GOAL
+  CollectionReference<Map<String, dynamic>> get goals {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('savingsGoals');
+  }
 
   Future<void> createGoal({
     required String name,
     required double targetAmount,
     required DateTime targetDate,
   }) async {
-    if (uid == null) {
-      throw Exception('User not logged in');
-    }
-
-    if (name.trim().isEmpty) {
-      throw Exception('Goal name cannot be empty');
-    }
-
-    if (targetAmount <= 0) {
-      throw Exception('Target amount must be greater than 0');
-    }
+    _validateGoal(name: name, targetAmount: targetAmount);
 
     final goal = await goals.add({
       'name': name.trim(),
       'targetAmount': targetAmount,
       'currentAmount': 0.0,
       'targetDate': Timestamp.fromDate(targetDate),
-
-      // Automatic values when goal is first created
       'progress': 0.0,
       'remainingAmount': targetAmount,
       'achieved': false,
-
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -60,27 +53,17 @@ class GoalService {
     );
   }
 
-  // READ ALL SAVINGS GOALS
-
   Stream<QuerySnapshot<Map<String, dynamic>>> getGoals() {
-    if (uid == null) {
-      throw Exception('User not logged in');
-    }
-
     return goals.orderBy('createdAt', descending: true).snapshots();
   }
 
-  // READ ONE SAVINGS GOAL
-
   Future<DocumentSnapshot<Map<String, dynamic>>> getGoal(String goalId) async {
-    if (uid == null) {
-      throw Exception('User not logged in');
+    if (goalId.trim().isEmpty) {
+      throw ArgumentError('Goal ID cannot be empty');
     }
 
-    return await goals.doc(goalId).get();
+    return goals.doc(goalId).get();
   }
-
-  // EDIT / UPDATE SAVINGS GOAL
 
   Future<void> updateGoal({
     required String goalId,
@@ -88,17 +71,11 @@ class GoalService {
     required double targetAmount,
     required DateTime targetDate,
   }) async {
-    if (uid == null) {
-      throw Exception('User not logged in');
+    if (goalId.trim().isEmpty) {
+      throw ArgumentError('Goal ID cannot be empty');
     }
 
-    if (name.trim().isEmpty) {
-      throw Exception('Goal name cannot be empty');
-    }
-
-    if (targetAmount <= 0) {
-      throw Exception('Target amount must be greater than 0');
-    }
+    _validateGoal(name: name, targetAmount: targetAmount);
 
     final goalRef = goals.doc(goalId);
 
@@ -114,26 +91,22 @@ class GoalService {
       throw Exception('Goal data not found');
     }
 
-    final double currentAmount =
-        (data['currentAmount'] as num?)?.toDouble() ?? 0.0;
+    final currentAmount = (data['currentAmount'] as num?)?.toDouble() ?? 0.0;
 
-    // Recalculate progress if target changes
-    double progress = (currentAmount / targetAmount) * 100;
+    final progress = calculateProgress(
+      currentAmount: currentAmount,
+      targetAmount: targetAmount,
+    );
 
-    // Do not show progress above 100%
-    if (progress > 100) {
-      progress = 100;
-    }
+    final remainingAmount = calculateRemaining(
+      currentAmount: currentAmount,
+      targetAmount: targetAmount,
+    );
 
-    // Calculate remaining amount
-    double remainingAmount = targetAmount - currentAmount;
-
-    if (remainingAmount < 0) {
-      remainingAmount = 0;
-    }
-
-    // Check Goal Achieved
-    final bool achieved = currentAmount >= targetAmount;
+    final achieved = isGoalAchieved(
+      currentAmount: currentAmount,
+      targetAmount: targetAmount,
+    );
 
     await goalRef.update({
       'name': name.trim(),
@@ -145,11 +118,14 @@ class GoalService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    await _notificationService.savingsRecommendation(
-      goalId: goalId,
-      goalName: name.trim(),
-      amount: (targetAmount - currentAmount).clamp(0, double.infinity),
-    );
+    if (!achieved && remainingAmount > 0) {
+      await _notificationService.savingsRecommendation(
+        goalId: goalId,
+        goalName: name.trim(),
+        amount: remainingAmount,
+      );
+    }
+
     await _notificationService.checkGoalProgress(
       goalId: goalId,
       goalName: name.trim(),
@@ -158,34 +134,44 @@ class GoalService {
     );
   }
 
-  // DELETE SAVINGS GOAL
-
   Future<void> deleteGoal(String goalId) async {
-    if (uid == null) {
-      throw Exception('User not logged in');
+    if (goalId.trim().isEmpty) {
+      throw ArgumentError('Goal ID cannot be empty');
     }
 
-    await goals.doc(goalId).delete();
-  }
+    final goalRef = goals.doc(goalId);
 
-  // ADD CONTRIBUTION
+    final contributions = await goalRef.collection('contributions').get();
+
+    if (contributions.docs.isNotEmpty) {
+      final batch = _firestore.batch();
+
+      for (final contribution in contributions.docs) {
+        batch.delete(contribution.reference);
+      }
+
+      await batch.commit();
+    }
+
+    await goalRef.delete();
+  }
 
   Future<void> addContribution({
     required String goalId,
     required double contribution,
   }) async {
-    if (uid == null) {
-      throw Exception('User not logged in');
+    if (goalId.trim().isEmpty) {
+      throw ArgumentError('Goal ID cannot be empty');
     }
 
-    if (contribution <= 0) {
-      throw Exception('Contribution must be greater than 0');
+    if (!contribution.isFinite || contribution <= 0) {
+      throw ArgumentError('Contribution must be greater than 0');
     }
 
     final goalRef = goals.doc(goalId);
 
-    // Use a Firestore transaction so two updates do not
-    // accidentally overwrite each other.
+    final contributionRef = goalRef.collection('contributions').doc();
+
     await _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(goalRef);
 
@@ -199,38 +185,30 @@ class GoalService {
         throw Exception('Goal data not found');
       }
 
-      final double currentAmount =
-          (data['currentAmount'] as num?)?.toDouble() ?? 0.0;
+      final currentAmount = (data['currentAmount'] as num?)?.toDouble() ?? 0.0;
 
-      final double targetAmount =
-          (data['targetAmount'] as num?)?.toDouble() ?? 0.0;
+      final targetAmount = (data['targetAmount'] as num?)?.toDouble() ?? 0.0;
 
       if (targetAmount <= 0) {
         throw Exception('Invalid target amount');
       }
 
-      // Add contribution
-      final double newAmount = currentAmount + contribution;
+      final newAmount = currentAmount + contribution;
 
-      // AUTOMATIC PROGRESS
+      final progress = calculateProgress(
+        currentAmount: newAmount,
+        targetAmount: targetAmount,
+      );
 
-      double progress = (newAmount / targetAmount) * 100;
+      final remainingAmount = calculateRemaining(
+        currentAmount: newAmount,
+        targetAmount: targetAmount,
+      );
 
-      if (progress > 100) {
-        progress = 100;
-      }
-
-      // AUTOMATIC REMAINING AMOUNT
-
-      double remainingAmount = targetAmount - newAmount;
-
-      if (remainingAmount < 0) {
-        remainingAmount = 0;
-      }
-
-      // AUTOMATIC GOAL ACHIEVED
-
-      final bool achieved = newAmount >= targetAmount;
+      final achieved = isGoalAchieved(
+        currentAmount: newAmount,
+        targetAmount: targetAmount,
+      );
 
       transaction.update(goalRef, {
         'currentAmount': newAmount,
@@ -239,21 +217,31 @@ class GoalService {
         'achieved': achieved,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-    });
 
-    // Save contribution history
-    await goalRef.collection('contributions').add({
-      'amount': contribution,
-      'date': FieldValue.serverTimestamp(),
+      transaction.set(contributionRef, {
+        'amount': contribution,
+        'date': FieldValue.serverTimestamp(),
+      });
     });
 
     final updatedGoal = await goalRef.get();
-    final updatedData = updatedGoal.data();
-    final goalName = updatedData?['name'] as String? ?? 'your goal';
-    final targetAmount =
-        (updatedData?['targetAmount'] as num?)?.toDouble() ?? 0;
-    final currentAmount =
-        (updatedData?['currentAmount'] as num?)?.toDouble() ?? 0;
+
+    final data = updatedGoal.data();
+
+    if (data == null) {
+      return;
+    }
+
+    final goalName = data['name'] as String? ?? 'your goal';
+
+    final targetAmount = (data['targetAmount'] as num?)?.toDouble() ?? 0.0;
+
+    final currentAmount = (data['currentAmount'] as num?)?.toDouble() ?? 0.0;
+
+    final remainingAmount = calculateRemaining(
+      currentAmount: currentAmount,
+      targetAmount: targetAmount,
+    );
 
     await _notificationService.checkGoalProgress(
       goalId: goalId,
@@ -261,18 +249,19 @@ class GoalService {
       currentAmount: currentAmount,
       targetAmount: targetAmount,
     );
-    await _notificationService.savingsRecommendation(
-      goalId: goalId,
-      goalName: goalName,
-      amount: (targetAmount - currentAmount).clamp(0, double.infinity),
-    );
+
+    if (remainingAmount > 0) {
+      await _notificationService.savingsRecommendation(
+        goalId: goalId,
+        goalName: goalName,
+        amount: remainingAmount,
+      );
+    }
   }
 
-  // GET CONTRIBUTION HISTORY
-
   Stream<QuerySnapshot<Map<String, dynamic>>> getContributions(String goalId) {
-    if (uid == null) {
-      throw Exception('User not logged in');
+    if (goalId.trim().isEmpty) {
+      throw ArgumentError('Goal ID cannot be empty');
     }
 
     return goals
@@ -282,8 +271,6 @@ class GoalService {
         .snapshots();
   }
 
-  // CALCULATE PROGRESS
-
   double calculateProgress({
     required double currentAmount,
     required double targetAmount,
@@ -292,36 +279,34 @@ class GoalService {
       return 0;
     }
 
-    double progress = (currentAmount / targetAmount) * 100;
+    final progress = (currentAmount / targetAmount) * 100;
 
-    if (progress > 100) {
-      progress = 100;
-    }
-
-    return progress;
+    return progress.clamp(0.0, 100.0).toDouble();
   }
-
-  // CALCULATE REMAINING
 
   double calculateRemaining({
     required double currentAmount,
     required double targetAmount,
   }) {
-    final double remaining = targetAmount - currentAmount;
+    final remaining = targetAmount - currentAmount;
 
-    if (remaining < 0) {
-      return 0;
-    }
-
-    return remaining;
+    return remaining < 0 ? 0.0 : remaining;
   }
-
-  // CHECK GOAL ACHIEVED
 
   bool isGoalAchieved({
     required double currentAmount,
     required double targetAmount,
   }) {
-    return currentAmount >= targetAmount;
+    return targetAmount > 0 && currentAmount >= targetAmount;
+  }
+
+  void _validateGoal({required String name, required double targetAmount}) {
+    if (name.trim().isEmpty) {
+      throw ArgumentError('Goal name cannot be empty');
+    }
+
+    if (!targetAmount.isFinite || targetAmount <= 0) {
+      throw ArgumentError('Target amount must be greater than 0');
+    }
   }
 }

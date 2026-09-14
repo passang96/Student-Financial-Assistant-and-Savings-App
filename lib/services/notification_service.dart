@@ -5,7 +5,6 @@ class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Current logged-in user's UID
   String get userId {
     final user = _auth.currentUser;
 
@@ -16,7 +15,6 @@ class NotificationService {
     return user.uid;
   }
 
-  // Current user's notification collection
   CollectionReference<Map<String, dynamic>> get notifications {
     return _firestore
         .collection('users')
@@ -31,13 +29,17 @@ class NotificationService {
     if (budgetAmount <= 0 || spentAmount < 0) {
       return null;
     }
-    final percentage = spentAmount / budgetAmount * 100;
+
+    final percentage = (spentAmount / budgetAmount) * 100;
+
     if (percentage >= 100) {
       return 'budget_exceeded';
     }
+
     if (percentage >= 80) {
       return 'budget_warning';
     }
+
     return null;
   }
 
@@ -48,7 +50,9 @@ class NotificationService {
     return budgetAmount > 0 && projectedAmount > budgetAmount;
   }
 
-  // CREATE NOTIFICATION
+  String _monthKey(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}';
+  }
 
   Future<void> createNotification({
     required String title,
@@ -57,19 +61,7 @@ class NotificationService {
     String? referenceId,
     String? uniqueKey,
   }) async {
-    // Prevent duplicate notifications
-    if (uniqueKey != null) {
-      final existing = await notifications
-          .where('uniqueKey', isEqualTo: uniqueKey)
-          .limit(1)
-          .get();
-
-      if (existing.docs.isNotEmpty) {
-        return;
-      }
-    }
-
-    await notifications.add({
+    final data = <String, dynamic>{
       'userId': userId,
       'title': title,
       'message': message,
@@ -78,34 +70,42 @@ class NotificationService {
       'referenceId': referenceId,
       'uniqueKey': uniqueKey,
       'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    if (uniqueKey == null) {
+      await notifications.add(data);
+      return;
+    }
+
+    final documentId = Uri.encodeComponent(uniqueKey);
+    final reference = notifications.doc(documentId);
+
+    await _firestore.runTransaction((transaction) async {
+      final existing = await transaction.get(reference);
+
+      if (existing.exists) {
+        return;
+      }
+
+      transaction.set(reference, data);
     });
   }
-
-  // GET NOTIFICATIONS
 
   Stream<QuerySnapshot<Map<String, dynamic>>> getNotifications() {
     return notifications.orderBy('createdAt', descending: true).snapshots();
   }
 
-  // MARK NOTIFICATION AS READ
-
   Future<void> markAsRead(String notificationId) async {
     await notifications.doc(notificationId).update({'isRead': true});
   }
-
-  // MARK NOTIFICATION AS UNREAD
 
   Future<void> markAsUnread(String notificationId) async {
     await notifications.doc(notificationId).update({'isRead': false});
   }
 
-  // DELETE NOTIFication
-
   Future<void> deleteNotification(String notificationId) async {
     await notifications.doc(notificationId).delete();
   }
-
-  // MARK ALL AS READ
 
   Future<void> markAllAsRead() async {
     final snapshot = await notifications
@@ -125,8 +125,6 @@ class NotificationService {
     await batch.commit();
   }
 
-  // UNREAD COUNT
-
   Stream<int> getUnreadCount() {
     return notifications
         .where('isRead', isEqualTo: false)
@@ -134,15 +132,14 @@ class NotificationService {
         .map((snapshot) => snapshot.docs.length);
   }
 
-  // BUDGET WARNING / EXCEEDED
-
   Future<void> checkBudget({
     required String budgetId,
     required String category,
     required double budgetAmount,
     required double spentAmount,
+    DateTime? month,
   }) async {
-    if (budgetAmount <= 0) {
+    if (budgetAmount <= 0 || spentAmount < 0) {
       return;
     }
 
@@ -151,29 +148,23 @@ class NotificationService {
       spentAmount: spentAmount,
     );
 
-    final now = DateTime.now();
+    final selectedMonth = month ?? DateTime.now();
+    final key = _monthKey(selectedMonth);
 
-    final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-
-    // Budget exceeded
     if (notificationType == 'budget_exceeded') {
-      final uniqueKey = 'budget_exceeded_${budgetId}_$monthKey';
-
       await createNotification(
         title: 'Budget Exceeded',
         message: 'You have reached or exceeded your $category budget.',
         type: 'budget_exceeded',
         referenceId: budgetId,
-        uniqueKey: uniqueKey,
+        uniqueKey: 'budget_exceeded_${budgetId}_$key',
       );
 
       return;
     }
 
-    // Budget warning at 80%
     if (notificationType == 'budget_warning') {
-      final percentage = spentAmount / budgetAmount * 100;
-      final uniqueKey = 'budget_warning_${budgetId}_$monthKey';
+      final percentage = (spentAmount / budgetAmount) * 100;
 
       await createNotification(
         title: 'Budget Warning',
@@ -181,33 +172,31 @@ class NotificationService {
             'You have used ${percentage.toStringAsFixed(0)}% of your $category budget.',
         type: 'budget_warning',
         referenceId: budgetId,
-        uniqueKey: uniqueKey,
+        uniqueKey: 'budget_warning_${budgetId}_$key',
       );
     }
   }
 
-  // Older/simple budget warning API
   Future<void> budgetWarning({
     required String category,
     required double spent,
     required double budget,
+    DateTime? month,
   }) async {
-    if (budget <= 0) {
+    if (budget <= 0 || spent < 0) {
       return;
     }
 
+    final selectedMonth = month ?? DateTime.now();
+    final key = _monthKey(selectedMonth);
     final percentage = (spent / budget) * 100;
-
-    final now = DateTime.now();
-
-    final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
 
     if (percentage >= 100) {
       await createNotification(
         title: 'Budget Exceeded',
         message: 'You have exceeded your $category budget.',
         type: 'budget_exceeded',
-        uniqueKey: 'budget_exceeded_${category}_$monthKey',
+        uniqueKey: 'budget_exceeded_${category}_$key',
       );
 
       return;
@@ -219,17 +208,16 @@ class NotificationService {
         message:
             'You have used ${percentage.toStringAsFixed(0)}% of your $category budget.',
         type: 'budget_warning',
-        uniqueKey: 'budget_warning_${category}_$monthKey',
+        uniqueKey: 'budget_warning_${category}_$key',
       );
     }
   }
-
-  // PROJECTED OVERSPENDING
 
   Future<void> projectedOverspending({
     required String category,
     required double projectedAmount,
     required double budgetAmount,
+    DateTime? month,
   }) async {
     if (!shouldNotifyProjectedOverspending(
       projectedAmount: projectedAmount,
@@ -239,34 +227,28 @@ class NotificationService {
     }
 
     final difference = projectedAmount - budgetAmount;
-
-    final now = DateTime.now();
-
-    final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final selectedMonth = month ?? DateTime.now();
+    final key = _monthKey(selectedMonth);
 
     await createNotification(
       title: 'Possible Overspending',
       message:
           'At your current spending rate, $category may exceed its budget by \$${difference.toStringAsFixed(2)}.',
       type: 'projected_overspending',
-      uniqueKey: 'projected_overspending_${category}_$monthKey',
+      uniqueKey: 'projected_overspending_${category}_$key',
     );
   }
-
-  // SAVINGS RECOMMENDATION
 
   Future<void> savingsRecommendation({
     required String goalId,
     required String goalName,
     required double amount,
   }) async {
-    if (amount <= 0) {
+    if (amount <= 0 || !amount.isFinite) {
       return;
     }
 
-    final now = DateTime.now();
-
-    final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final key = _monthKey(DateTime.now());
 
     await createNotification(
       title: 'Savings Recommendation',
@@ -274,11 +256,9 @@ class NotificationService {
           'You could potentially save \$${amount.toStringAsFixed(2)} toward $goalName.',
       type: 'savings_recommendation',
       referenceId: goalId,
-      uniqueKey: 'savings_recommendation_${goalId}_$monthKey',
+      uniqueKey: 'savings_recommendation_${goalId}_$key',
     );
   }
-
-  // GOAL PROGRESS
 
   Future<void> checkGoalProgress({
     required String goalId,
@@ -296,7 +276,10 @@ class NotificationService {
       progress = 100;
     }
 
-    // Goal achieved
+    if (progress < 0) {
+      progress = 0;
+    }
+
     if (progress >= 100) {
       await createNotification(
         title: 'Goal Achieved 🎉',
@@ -309,7 +292,6 @@ class NotificationService {
       return;
     }
 
-    // 75%
     if (progress >= 75) {
       await createNotification(
         title: 'Goal Progress',
@@ -322,7 +304,6 @@ class NotificationService {
       return;
     }
 
-    // 50%
     if (progress >= 50) {
       await createNotification(
         title: 'Goal Progress',
@@ -335,7 +316,6 @@ class NotificationService {
       return;
     }
 
-    // 25%
     if (progress >= 25) {
       await createNotification(
         title: 'Goal Progress',
@@ -347,18 +327,17 @@ class NotificationService {
     }
   }
 
-  // SIMPLE GOAL COMPLETED NOTIFICATION
+  Future<void> goalCompleted({required String goalName, String? goalId}) async {
+    final key = goalId ?? goalName.trim().toLowerCase().replaceAll(' ', '_');
 
-  Future<void> goalCompleted({required String goalName}) async {
     await createNotification(
       title: 'Goal Achieved 🎉',
       message: 'Congratulations! You reached your $goalName savings goal.',
       type: 'goal_achieved',
-      uniqueKey: 'goal_completed_$goalName',
+      referenceId: goalId,
+      uniqueKey: 'goal_completed_$key',
     );
   }
-
-  // DELETE ALL NOTIFICATIONS
 
   Future<void> deleteAllNotifications() async {
     final snapshot = await notifications.get();
