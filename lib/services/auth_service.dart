@@ -105,6 +105,33 @@ class AuthService {
     }
   }
 
+  Future<AuthResult> sendPasswordResetEmail({required String email}) async {
+    try {
+      final cleanEmail = email.trim();
+
+      if (cleanEmail.isEmpty) {
+        return AuthResult.failure('Please enter your email address.');
+      }
+
+      if (!_isValidEmail(cleanEmail)) {
+        return AuthResult.failure('Please enter a valid email address.');
+      }
+
+      await _firebaseAuth.sendPasswordResetEmail(email: cleanEmail);
+
+      return AuthResult.success(
+        message:
+            'Password reset email sent. Please check your inbox and spam folder.',
+      );
+    } on FirebaseAuthException catch (e) {
+      return AuthResult.failure(_firebaseErrorMessage(e));
+    } catch (_) {
+      return AuthResult.failure(
+        'Unable to send password reset email. Please try again.',
+      );
+    }
+  }
+
   Future<AuthResult> logout() async {
     try {
       await _firebaseAuth.signOut();

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
+import '../services/auth_service.dart';
 import 'main_navigation_screen.dart';
 import 'register_screen.dart';
 
@@ -109,6 +110,71 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     }
+  }
+
+  Future<void> _handleForgotPassword() async {
+    final resetEmailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+
+    final String? email = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Reset Password'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter your registered email address. '
+                'We will send you a password reset link.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: resetEmailController,
+                keyboardType: TextInputType.emailAddress,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  hintText: 'Enter your email',
+                  prefixIcon: Icon(Icons.mail_outline),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(
+                  dialogContext,
+                ).pop(resetEmailController.text.trim());
+              },
+              child: const Text('Send Reset Link'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (email == null || email.isEmpty || !mounted) {
+      return;
+    }
+
+    final result = await AuthService().sendPasswordResetEmail(email: email);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(result.message), backgroundColor: Colors.green),
+    );
   }
 
   InputDecoration _buildInputDecoration(
@@ -261,7 +327,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Spacer(),
 
                     TextButton(
-                      onPressed: () {},
+                      onPressed: _handleForgotPassword,
                       child: const Text('Forgot Password?'),
                     ),
                   ],
@@ -346,7 +412,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text("Don't have an account? "),
-
                     GestureDetector(
                       onTap: () {
                         Navigator.of(context).push(
