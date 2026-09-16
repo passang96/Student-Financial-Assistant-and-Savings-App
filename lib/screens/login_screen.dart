@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/app_colors.dart';
 import '../services/auth_service.dart';
@@ -45,10 +46,15 @@ class _LoginScreenState extends State<LoginScreen> {
       final UserCredential credential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: password);
 
+      // Save ONLY the Remember Me preference.
+      // We never store the user's password.
+      final preferences = await SharedPreferences.getInstance();
+
+      await preferences.setBool('remember_me', _rememberMe);
+
       debugPrint('LOGIN SUCCESS');
       debugPrint('UID: ${credential.user?.uid}');
-      debugPrint('Email: ${credential.user?.email}');
-      debugPrint('Name: ${credential.user?.displayName}');
+      debugPrint('Remember Me: $_rememberMe');
 
       if (!mounted) return;
 
@@ -195,28 +201,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildSocialButton(IconData icon, VoidCallback onPressed) {
-    return Ink(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: IconButton(
-        icon: Icon(icon, color: AppColors.textPrimary),
-        onPressed: onPressed,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -229,7 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 32),
+                const SizedBox(height: 48),
 
                 const Icon(
                   Icons.account_balance_wallet_outlined,
@@ -257,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 36),
 
                 TextFormField(
                   controller: _emailController,
@@ -317,15 +301,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       activeColor: AppColors.primary,
                       onChanged: (value) {
                         setState(() {
-                          _rememberMe = value ?? true;
+                          _rememberMe = value ?? false;
                         });
                       },
                     ),
-
                     const Text('Remember me'),
-
                     const Spacer(),
-
                     TextButton(
                       onPressed: _handleForgotPassword,
                       child: const Text('Forgot Password?'),
@@ -357,56 +338,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       : const Text('Log in', style: TextStyle(fontSize: 16)),
                 ),
 
-                const SizedBox(height: 28),
-
-                const Row(
-                  children: [
-                    Expanded(child: Divider()),
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        'Or continue with',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ),
-                    Expanded(child: Divider()),
-                  ],
-                ),
-
-                const SizedBox(height: 20),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildSocialButton(Icons.g_mobiledata, () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Google login will be implemented later.',
-                          ),
-                        ),
-                      );
-                    }),
-
-                    const SizedBox(width: 16),
-
-                    _buildSocialButton(Icons.apple, () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Apple login will be implemented later.',
-                          ),
-                        ),
-                      );
-                    }),
-
-                    const SizedBox(width: 16),
-
-                    _buildSocialButton(Icons.mail_outline, () {}),
-                  ],
-                ),
-
-                const SizedBox(height: 28),
+                const SizedBox(height: 32),
 
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -431,7 +363,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
               ],
             ),
           ),

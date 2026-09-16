@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../login_screen.dart';
+import '../main_navigation_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,14 +19,36 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
 
-    Timer(const Duration(seconds: 3), () {
-      if (!mounted) return;
+    _checkAuthentication();
+  }
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+  Future<void> _checkAuthentication() async {
+    // Keep the splash screen visible for the original 3 seconds.
+    await Future.delayed(const Duration(seconds: 3));
+
+    final preferences = await SharedPreferences.getInstance();
+
+    final bool rememberMe = preferences.getBool('remember_me') ?? false;
+
+    User? currentUser = FirebaseAuth.instance.currentUser;
+
+    // If Remember Me is OFF, do not restore the old Firebase session.
+    if (!rememberMe && currentUser != null) {
+      await FirebaseAuth.instance.signOut();
+      currentUser = null;
+    }
+
+    if (!mounted) return;
+
+    if (rememberMe && currentUser != null) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
       );
-    });
+    } else {
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+    }
   }
 
   @override
