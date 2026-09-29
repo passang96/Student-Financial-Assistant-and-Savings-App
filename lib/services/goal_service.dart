@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/goal_progress.dart';
 import 'notification_service.dart';
 
 class GoalService {
@@ -275,38 +276,33 @@ class GoalService {
     required double currentAmount,
     required double targetAmount,
   }) {
-    if (targetAmount <= 0) {
-      return 0;
-    }
-
-    final progress = (currentAmount / targetAmount) * 100;
-
-    return progress.clamp(0.0, 100.0).toDouble();
+    return GoalProgress.calculateProgress(
+      currentAmount: currentAmount,
+      targetAmount: targetAmount,
+    );
   }
 
   double calculateRemaining({
     required double currentAmount,
     required double targetAmount,
   }) {
-    final remaining = targetAmount - currentAmount;
-
-    return remaining < 0 ? 0.0 : remaining;
+    return GoalProgress.calculateRemaining(
+      currentAmount: currentAmount,
+      targetAmount: targetAmount,
+    );
   }
 
   bool isGoalAchieved({
     required double currentAmount,
     required double targetAmount,
   }) {
-    return targetAmount > 0 && currentAmount >= targetAmount;
+    return GoalProgress.isAchieved(
+      currentAmount: currentAmount,
+      targetAmount: targetAmount,
+    );
   }
 
   void _validateGoal({required String name, required double targetAmount}) {
-    if (name.trim().isEmpty) {
-      throw ArgumentError('Goal name cannot be empty');
-    }
-
-    if (!targetAmount.isFinite || targetAmount <= 0) {
-      throw ArgumentError('Target amount must be greater than 0');
-    }
+    GoalProgress.validate(name: name, targetAmount: targetAmount);
   }
 }
